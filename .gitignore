@@ -1,0 +1,30 @@
+# Node.js
+node_modules/
+.pnpm-store/
+
+# NPM
+npm-debug.log*
+.pnpm-debug.log*
+
+# PNPM
+pnpm-lock.yaml
+
+# Next.js
+.next/
+out/
+.vercel/
+
+# Editor
+.vscode/
+.idea/
+
+# Environment
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging.local
+
+# misc
+*.log
+*.pnpm-debug.log

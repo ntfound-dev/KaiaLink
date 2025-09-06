@@ -1,0 +1,49 @@
+/* Mengimpor font 'Inter' dari Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* Injeksi direktif dasar dari Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definisi gaya dasar dan variabel warna.
+  Ini adalah tempat kita mendefinisikan tema aplikasi kita.
+*/
+@layer base {
+  :root {
+    --background: hsl(0 0% 100%); /* Warna latar belakang dasar (putih) */
+    --foreground: hsl(222.2 84% 4.9%); /* Warna teks dasar (hitam kebiruan) */
+    
+    --card: hsl(0 0% 100%);
+    --card-foreground: hsl(222.2 84% 4.9%);
+
+    --primary: hsl(221.2 83.2% 53.3%); /* Warna biru utama */
+    --primary-foreground: hsl(210 40% 98%); /* Warna teks di atas warna utama */
+
+    --secondary: hsl(210 40% 96.1%); /* Warna sekunder (abu-abu muda) */
+    --secondary-foreground: hsl(222.2 47.4% 11.2%);
+
+    --border: hsl(214.3 31.8% 91.4%);
+    --radius: 0.5rem; /* Radius sudut (border-radius) default */
+  }
+
+  /*
+    Di masa depan, bisa dengan mudah menambahkan dark mode seperti ini:
+    .dark {
+      --background: hsl(222.2 84% 4.9%);
+      --foreground: hsl(210 40% 98%);
+      ... (dan seterusnya)
+    }
+  */
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight; /* Membuat semua heading sedikit lebih rapat dan tebal */
+  }
+}

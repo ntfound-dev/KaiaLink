@@ -1,0 +1,17 @@
+// liff.json
+{
+  "liffId": "YOUR_LIFF_ID_FROM_LINE_DEVELOPERS_CONSOLE",
+  "view": {
+    "type": "full",
+    "url": "https://kaialink.app"
+  },
+  "description": "KaiaLink: The Gamified DeFi Gateway on LINE",
+  "features": {
+    "ble": false
+  },
+  "scope": [
+    "profile",
+    "openid"
+  ],
+  "botPrompt": "normal"
+}

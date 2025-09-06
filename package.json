@@ -1,0 +1,12 @@
+{
+  "name": "kaialink-monorepo",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "contracts:deploy": "pnpm --filter contracts run deploy"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
