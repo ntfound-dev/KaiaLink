@@ -3,14 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import WalletConnector from './WalletConnector';
-import { LanguageSwitcher } from './LanguageSwitcher'; // Impor komponen bahasa
+import { LanguageSwitcher } from './LanguageSwitcher';
 
-// Navigasi baru sesuai struktur halaman
+// Navigasi baru yang sudah lengkap dengan Airdrop dan Referral
 const navLinks = [
   { href: '/home', label: 'Beranda' },
   { href: '/missions', label: 'Misi' },
   { href: '/defi', label: 'DeFi' },
   { href: '/leaderboard', label: 'Peringkat' },
+  { href: '/referral', label: 'Referral' }, // <-- LINK BARU
+  { href: '/airdrop', label: 'Airdrop' },   // <-- LINK BARU
   { href: '/profile', label: 'Profil' },
 ];
 
@@ -18,12 +20,13 @@ export default function Header() {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <nav className="container mx-auto px-4 py-3 flex justify-between items-center">
         <Link href="/home" className="text-2xl font-bold text-blue-600">
           KaiaLink
         </Link>
 
+        {/* Menu untuk Desktop */}
         <ul className="hidden md:flex items-center space-x-6">
           {navLinks.map((link) => (
             <li key={link.href}>
@@ -36,7 +39,7 @@ export default function Header() {
             </li>
           ))}
         </ul>
-
+        
         <div className="flex items-center gap-4">
           <WalletConnector />
           <LanguageSwitcher />
