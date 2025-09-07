@@ -1,0 +1,67 @@
+// LOKASI FILE: apps/backend/prisma/schema.prisma
+// ---------------------------------------------
+// Ini adalah file skema Prisma Anda,
+// di mana Anda mendefinisikan model data aplikasi Anda.
+// Pelajari lebih lanjut tentang ini di https://pris.ly/d/prisma-schema
+
+// 1. Mendefinisikan sumber data (koneksi database)
+datasource db {
+  provider = "postgresql" // Kita menggunakan PostgreSQL
+  url      = env("DATABASE_URL") // URL koneksi diambil dari file .env
+}
+
+// 2. Mendefinisikan generator Prisma Client
+generator client {
+  provider = "prisma-client-js" // Menghasilkan Prisma Client untuk TypeScript/JavaScript
+}
+
+// 3. Mendefinisikan model-model data (yang akan menjadi tabel di database)
+
+// Model untuk Pengguna
+model User {
+  id              String   @id @default(uuid()) // Kunci utama, UUID otomatis
+  walletAddress   String   @unique // Alamat wallet, harus unik
+  nonce           String?  // Nonce untuk proses login, bisa null
+  points          Int      @default(0) // Poin gamifikasi
+  createdAt       DateTime @default(now()) // Waktu pembuatan akun
+  updatedAt       DateTime @updatedAt // Waktu update terakhir
+
+  // Relasi untuk Misi
+  missions        UserMission[]
+
+  // Relasi untuk Referral (self-relation)
+  referredBy      User?    @relation("Referrals", fields: [referredById], references: [id])
+  referredById    String?  // ID pengguna yang merujuk
+  referrals       User[]   @relation("Referrals") // Daftar pengguna yang dirujuk
+  referralCode    String   @unique @default(uuid()) // Kode referral unik untuk pengguna ini
+
+  // Kolom untuk Airdrop
+  isEligibleForAirdrop Boolean @default(false)
+  hasClaimedAirdrop    Boolean @default(false)
+  airdropAmount        Float   @default(0)
+}
+
+// Model untuk Misi
+model Mission {
+  id          String   @id @default(uuid())
+  title       String   // Judul misi, misal: "Lakukan 1 Swap"
+  description String   // Deskripsi detail misi
+  points      Int      // Poin yang didapat setelah menyelesaikan misi
+  type        String   @unique // Tipe misi yang unik untuk pengecekan, misal: "SWAP_1"
+
+  // Relasi ke pengguna yang telah menyelesaikan
+  completedBy UserMission[]
+}
+
+// Model penghubung antara User dan Mission (Many-to-Many)
+model UserMission {
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  mission   Mission  @relation(fields: [missionId], references: [id])
+  missionId String
+  completedAt DateTime @default(now())
+
+  // Kunci utama gabungan untuk memastikan pengguna hanya bisa menyelesaikan satu misi sekali
+  @@id([userId, missionId])
+}
+

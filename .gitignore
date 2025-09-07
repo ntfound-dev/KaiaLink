@@ -27,3 +27,6 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Environment variables
+.env
+apps/backend/.env
