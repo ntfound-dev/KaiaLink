@@ -1,7 +1,7 @@
 // LOKASI FILE: apps/backend/src/users/users.controller.ts
 // -------------------------------------------------------
 
-import { Controller, Get, Request, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Request, UseGuards, Redirect } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -25,3 +25,19 @@ export class UsersController {
   }
 }
 
+@ApiTags('me')
+@Controller('me')
+export class MeController {
+  constructor(private readonly usersService: UsersService) {}
+
+  /**
+   * Endpoint untuk mendapatkan profil pengguna yang sedang login.
+   * Ini adalah alias untuk /users/profile yang mengikuti konvensi REST API.
+   */
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get()
+  getMyProfile(@Request() req) {
+    return this.usersService.getProfile(req.user.userId);
+  }
+}

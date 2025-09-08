@@ -3,14 +3,14 @@
 
 import { Module } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { UsersController } from './users.controller';
+import { UsersController, MeController } from './users.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-  imports: [PrismaModule], // Impor PrismaModule agar PrismaService tersedia
-  controllers: [UsersController],
+  imports: [PrismaModule],
+  controllers: [UsersController, MeController],
   providers: [UsersService],
-  exports: [UsersService], // Ekspor UsersService agar bisa digunakan oleh modul lain (seperti AuthModule)
+  exports: [UsersService],
 })
 export class UsersModule {}
 

@@ -11,7 +11,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Mengaktifkan CORS agar frontend bisa mengakses API ini
-  app.enableCors();
+  app.enableCors({
+    origin: true, // Izinkan semua origin untuk development
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
 
   // Mengaktifkan ValidationPipe secara global
   app.useGlobalPipes(
