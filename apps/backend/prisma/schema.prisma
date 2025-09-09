@@ -13,6 +13,7 @@ datasource db {
 // 2. Mendefinisikan generator Prisma Client
 generator client {
   provider = "prisma-client-js" // Menghasilkan Prisma Client untuk TypeScript/JavaScript
+  binaryTargets = ["native", "windows"]
 }
 
 // 3. Mendefinisikan model-model data (yang akan menjadi tabel di database)

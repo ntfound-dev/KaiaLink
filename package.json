@@ -1,12 +1,18 @@
 {
   "name": "kaialink-monorepo",
+  "version": "1.0.0",
+  "description": "KaiaLink Project",
   "private": true,
+  "main": "index.js",
   "scripts": {
     "dev:frontend": "pnpm --filter frontend dev",
-    "dev:backend": "pnpm --filter backend dev",
-    "contracts:deploy": "pnpm --filter contracts run deploy"
+    "dev:backend": "pnpm --filter backend start:dev",
+    "contracts:deploy": "pnpm --filter contracts deploy"
   },
   "devDependencies": {
     "typescript": "^5.0.0"
-  }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }

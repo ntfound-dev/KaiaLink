@@ -1,0 +1,51 @@
+{
+  // Opsi-opsi ini adalah fondasi yang baik untuk proyek Hardhat
+  "compilerOptions": {
+    // --- Target & Module System ---
+    "target": "ES2020", // Mengompilasi ke versi JavaScript modern yang didukung oleh Node.js
+    "module": "CommonJS", // Menggunakan sistem module standar Node.js (require/exports)
+    "moduleResolution": "Node", // Bagaimana TypeScript menemukan module
+
+    // --- Aturan Pengecekan Tipe yang Ketat (Best Practice) ---
+    "strict": true, // Mengaktifkan semua aturan pengecekan tipe yang ketat
+    "noImplicitAny": true, // Memberi error jika ada tipe 'any' yang tidak eksplisit
+    "strictNullChecks": true, // Membedakan antara 'null', 'undefined', dan tipe lainnya
+
+    // --- Interoperabilitas Module ---
+    "esModuleInterop": true, // Memungkinkan interoperabilitas yang lebih baik antara module CommonJS dan ES Modules
+    "resolveJsonModule": true, // Memungkinkan untuk mengimpor file .json langsung di dalam kode TypeScript
+
+    // --- Output & Debugging ---
+    "sourceMap": true, // Menghasilkan source map untuk memudahkan debugging
+    "outDir": "dist", // Direktori output untuk file JavaScript yang dikompilasi (opsional untuk Hardhat)
+    
+    // --- Konfigurasi Path ---
+    "baseUrl": ".", // Menentukan direktori dasar untuk path module
+    "paths": {
+      "*": [
+        "node_modules/*"
+      ]
+    },
+
+    // --- Tipe Tambahan ---
+    "typeRoots": [
+      "./node_modules/@types",
+      "./typechain-types" // Sangat penting: agar TypeScript mengenali tipe dari kontrak Anda
+    ]
+  },
+
+  // File dan direktori mana yang harus disertakan dalam proses kompilasi
+  "include": [
+    "./scripts",
+    "contracts/test",
+    "./typechain-types",
+    "contracts/hardhat.config.ts"
+  ],
+
+  // File dan direktori mana yang harus diabaikan
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
+}

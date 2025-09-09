@@ -30,3 +30,14 @@ Thumbs.db
 # Environment variables
 .env
 apps/backend/.env
+
+packages/contracts/node_modules
+packages/contracts/typechain-types
+packages/contracts/.env
+packages/contracts/cache
+packages/contracts/artifacts
+apps/frontend/.next
+apps/frontend/node_modules
+
+pnpm-lock.yaml
+apps/backend/prisma/migrations/20250907013217_init
