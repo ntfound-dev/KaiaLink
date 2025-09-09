@@ -41,3 +41,4 @@ apps/frontend/node_modules
 
 pnpm-lock.yaml
 apps/backend/prisma/migrations/20250907013217_init
+.turbo

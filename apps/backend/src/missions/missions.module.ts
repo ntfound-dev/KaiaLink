@@ -5,9 +5,13 @@ import { Module } from '@nestjs/common';
 import { MissionsService } from './missions.service';
 import { MissionsController } from './missions.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { LeaderboardsModule } from '../leaderboards/leaderboards.module'; // <-- 1. IMPORT LeaderboardsModule
 
 @Module({
-  imports: [PrismaModule], // Butuh PrismaService untuk interaksi DB
+  imports: [
+    PrismaModule,
+    LeaderboardsModule, // <-- 2. TAMBAHKAN di sini agar MissionsService bisa inject LeaderboardsService
+  ],
   controllers: [MissionsController],
   providers: [MissionsService],
 })

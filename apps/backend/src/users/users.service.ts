@@ -1,79 +1,89 @@
-// LOKASI FILE: apps/backend/src/users/users.service.ts
-// ----------------------------------------------------
-
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { User } from '@prisma/client';
+import { User, Prisma } from '@prisma/client';
+import { UpdateUserDto } from '../common/dtos/update-user.dto';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class UsersService {
-  // Suntikkan PrismaService agar bisa berinteraksi dengan database
   constructor(private prisma: PrismaService) {}
 
-  /**
-   * Mencari atau membuat pengguna baru berdasarkan alamat wallet.
-   * @param walletAddress Alamat wallet pengguna
-   * @returns Objek Pengguna (User)
-   */
+  private sanitizeUser(user: User): Omit<User, 'nonce'> {
+    if (!user) return null;
+    const { nonce, ...result } = user;
+    return result;
+  }
+
+  // ... (method findOrCreateByWalletAddress dan findOneByWalletAddress tetap sama) ...
   async findOrCreateByWalletAddress(walletAddress: string): Promise<User> {
     const lowercasedAddress = walletAddress.toLowerCase();
-    
     let user = await this.prisma.user.findUnique({
       where: { walletAddress: lowercasedAddress },
     });
-
     if (!user) {
       user = await this.prisma.user.create({
-        data: {
-          walletAddress: lowercasedAddress,
-        },
+        data: { walletAddress: lowercasedAddress },
       });
     }
-
     return user;
   }
-
-  /**
-   * Mencari satu pengguna berdasarkan alamat wallet.
-   * @param walletAddress Alamat wallet
-   * @returns Objek User atau null jika tidak ditemukan
-   */
   async findOneByWalletAddress(walletAddress: string): Promise<User | null> {
     return this.prisma.user.findUnique({
       where: { walletAddress: walletAddress.toLowerCase() },
     });
   }
 
+
   /**
-   * Mendapatkan profil pengguna berdasarkan ID.
-   * @param id ID Pengguna
-   * @returns Objek User tanpa nonce
+   * REVISI: Nama diganti kembali menjadi `getProfile` agar sinkron dengan Controller.
+   * Mendapatkan profil publik pengguna berdasarkan ID.
    */
   async getProfile(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
     });
-    // Hapus nonce sebelum mengirim data ke client
-    if (user) {
-        const { nonce, ...result } = user;
-        return result;
+
+    if (!user) {
+      throw new NotFoundException('Pengguna tidak ditemukan.');
     }
-    return null;
+    
+    return this.sanitizeUser(user);
   }
 
-  /**
-   * Mengupdate nonce pengguna untuk keamanan setelah login berhasil.
-   * @param userId ID Pengguna
-   * @returns Objek User yang telah diupdate
-   */
   async refreshNonce(userId: string): Promise<User> {
       return this.prisma.user.update({
           where: { id: userId },
           data: {
-              // Membuat nonce baru yang acak
-              nonce: Buffer.from(require('crypto').randomBytes(32)).toString('hex')
+              nonce: crypto.randomBytes(32).toString('hex')
           }
       });
   }
-}
 
+  async updateProfile(userId: string, data: UpdateUserDto) {
+    const updateData: Prisma.UserUpdateInput = {};
+
+    if (data.telegramHandle !== undefined) {
+      updateData.telegramHandle = data.telegramHandle;
+    }
+    if (data.discordId !== undefined) {
+      updateData.discordId = data.discordId;
+    }
+    if (data.twitterHandle !== undefined) {
+      updateData.twitterHandle = data.twitterHandle;
+    }
+    if (data.lineId !== undefined) {
+      updateData.lineId = data.lineId;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return this.getProfile(userId);
+    }
+    
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    return this.sanitizeUser(updatedUser);
+  }
+}

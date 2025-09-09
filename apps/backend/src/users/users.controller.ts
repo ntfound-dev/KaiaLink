@@ -1,43 +1,41 @@
-// LOKASI FILE: apps/backend/src/users/users.controller.ts
-// -------------------------------------------------------
-
-import { Controller, Get, Post, Request, UseGuards, Redirect } from '@nestjs/common';
+import { Controller, Patch, Body, Request, UseGuards, Get } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { UpdateUserDto } from '../common/dtos/update-user.dto';
 
-@ApiTags('users') // Mengelompokkan endpoint di dokumentasi Swagger
-@Controller('users')
+@ApiTags('users')
+@Controller('users') // <-- REVISI: Menambahkan base path 'users' untuk kejelasan
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   /**
    * Endpoint untuk mendapatkan profil pengguna yang sedang login.
-   * Rute ini dilindungi oleh JwtAuthGuard.
+   * SEKARANG DIAKSES LEWAT: GET /users/me
    */
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth() // Menandakan endpoint ini butuh Bearer Token di Swagger
-  @Get('profile')
-  getProfile(@Request() req) {
-    // req.user berisi payload dari JWT yang sudah divalidasi oleh JwtStrategy
-    // Kita panggil service untuk mengambil data lengkap dari database
-    return this.usersService.getProfile(req.user.userId);
-  }
-}
-
-@ApiTags('me')
-@Controller('me')
-export class MeController {
-  constructor(private readonly usersService: UsersService) {}
-
-  /**
-   * Endpoint untuk mendapatkan profil pengguna yang sedang login.
-   * Ini adalah alias untuk /users/profile yang mengikuti konvensi REST API.
-   */
+  @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @Get()
-  getMyProfile(@Request() req) {
-    return this.usersService.getProfile(req.user.userId);
+  @ApiOperation({ summary: 'Dapatkan profil saya (pengguna yang sedang login)' })
+  async getMyProfile(@Request() req) {
+    // req.user.sub adalah 'subject' dari JWT, biasanya berisi user ID
+    const userId = req.user.sub; 
+    return this.usersService.getProfile(userId);
+  }
+
+  /**
+   * Endpoint untuk mengupdate profil pengguna yang sedang login.
+   * SEKARANG DIAKSES LEWAT: PATCH /users/me
+   */
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update profil saya (pengguna yang sedang login)' })
+  async updateMyProfile(
+    @Request() req,
+    @Body() updateProfileDto: UpdateUserDto,
+  ) {
+    const userId = req.user.sub;
+    return this.usersService.updateProfile(userId, updateProfileDto);
   }
 }

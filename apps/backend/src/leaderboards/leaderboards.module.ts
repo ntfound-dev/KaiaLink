@@ -10,5 +10,6 @@ import { PrismaModule } from '../prisma/prisma.module';
   imports: [PrismaModule],
   controllers: [LeaderboardsController],
   providers: [LeaderboardsService],
+  exports: [LeaderboardsService],
 })
 export class LeaderboardsModule {}

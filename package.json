@@ -7,12 +7,15 @@
   "scripts": {
     "dev:frontend": "pnpm --filter frontend dev",
     "dev:backend": "pnpm --filter backend start:dev",
-    "contracts:deploy": "pnpm --filter contracts deploy"
+    "contracts:deploy": "pnpm --filter contracts deploy",
+    "db:seed": "pnpm --filter backend seed"
   },
   "devDependencies": {
+    "turbo": "^2.5.6",
     "typescript": "^5.0.0"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "packageManager": "pnpm@10.15.1"
 }

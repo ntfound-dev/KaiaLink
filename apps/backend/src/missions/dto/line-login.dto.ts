@@ -1,5 +1,5 @@
 /**
- * LOKASI FILE: /apps/backend/src/auth/dto/line-login.dto.ts
+ * LOKASI FILE: apps/backend/src/missions/dto/line-login.dto.ts
  * PENJELASAN:
  * File ini ditaruh di dalam sub-folder 'dto' di dalam modul 'auth'.
  * DTO (Data Transfer Object) berfungsi sebagai "formulir" atau "cetakan"

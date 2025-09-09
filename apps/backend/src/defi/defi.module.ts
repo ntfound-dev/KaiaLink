@@ -1,20 +1,11 @@
-// LOKASI FILE: apps/backend/src/defi/defi.module.ts
-// -------------------------------------------------
-
 import { Module } from '@nestjs/common';
+import { HttpModule } from '@nestjs/axios'; // <-- 1. Import HttpModule
 import { DefiService } from './defi.service';
 import { DefiController } from './defi.controller';
-import { HttpModule } from '@nestjs/axios';
 
 @Module({
-  imports: [
-    // Impor HttpModule agar kita bisa menyuntikkan HttpService untuk membuat request API
-    HttpModule.register({
-      timeout: 5000,
-      maxRedirects: 5,
-    }),
-  ],
-  controllers: [DefiController],
+  imports: [HttpModule], // <-- 2. Tambahkan di sini
   providers: [DefiService],
+  controllers: [DefiController],
 })
 export class DefiModule {}

@@ -1,79 +1,118 @@
-// LOKASI FILE: apps/backend/src/missions/missions.service.ts
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateMissionDto } from './dto/create-mission.dto';
+import { UpdateMissionDto } from './dto/update-mission.dto';
 
 @Injectable()
 export class MissionsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(MissionsService.name);
+  private readonly referralCommissionRate: number;
 
-  async getActiveMissions() {
-    return this.prisma.mission.findMany();
-  }
-
-  async getUserMissions(userId: string) {
-    const userMissions = await this.prisma.userMission.findMany({
-      where: { userId },
-      select: {
-        missionId: true,
-        completedAt: true,
-      },
-    });
-
-    const userMissionsMap = new Map(
-      userMissions.map((um) => [um.missionId, um.completedAt]),
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+  ) {
+    // Ambil rate komisi dari file .env
+    this.referralCommissionRate = parseFloat(
+      this.configService.get<string>('REFERRAL_COMMISSION_RATE', '0.1'), // Default 10%
     );
-
-    const allMissions = await this.getActiveMissions();
-
-    return allMissions.map((mission) => ({
-      ...mission,
-      completed: userMissionsMap.has(mission.id),
-      completedAt: userMissionsMap.get(mission.id) || null,
-    }));
   }
 
-  async completeMission(userId: string, missionId: string) {
-    const mission = await this.prisma.mission.findUnique({
-      where: { id: missionId },
-    });
+  // --- FUNGSI-FUNGSI CRUD UNTUK ADMIN (DENGAN PENGECEKAN) ---
+  create(createMissionDto: CreateMissionDto) {
+    return this.prisma.mission.create({ data: createMissionDto });
+  }
 
+  findAll() {
+    return this.prisma.mission.findMany({ where: { isActive: true } });
+  }
+
+  async findOne(id: number) {
+    const mission = await this.prisma.mission.findUnique({ where: { id } });
     if (!mission) {
-      throw new NotFoundException('Misi tidak ditemukan.');
+      throw new NotFoundException(`Misi dengan ID "${id}" tidak ditemukan.`);
     }
+    return mission;
+  }
 
-    const existingCompletion = await this.prisma.userMission.findUnique({
-      where: {
-        userId_missionId: {
-          userId,
-          missionId,
-        },
-      },
+  async update(id: number, updateMissionDto: UpdateMissionDto) {
+    await this.findOne(id); // Cek dulu apakah misinya ada
+    return this.prisma.mission.update({
+      where: { id },
+      data: updateMissionDto,
     });
+  }
 
-    if (existingCompletion) {
-      throw new BadRequestException('Anda sudah menyelesaikan misi ini.');
+  async remove(id: number) {
+    await this.findOne(id); // Cek dulu apakah misinya ada
+    await this.prisma.mission.delete({ where: { id } });
+    return { message: `Misi dengan ID ${id} berhasil dihapus` };
+  }
+  
+  // --- LOGIKA INTI UNTUK PENGGUNA ---
+  
+  async completeMission(userId: string, missionId: number): Promise<any> {
+    const mission = await this.prisma.mission.findUnique({ where: { id: missionId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (!mission || !user) {
+      throw new NotFoundException('Misi atau pengguna tidak ditemukan.');
     }
+    
+    // ... (Logika verifikasi misi yang sebenarnya akan ada di sini) ...
+    const isVerified = true; // Asumsikan misi berhasil diverifikasi untuk tujuan tes
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        points: {
-          increment: mission.points,
-        },
-      },
-    });
+    if (isVerified) {
+      return this.prisma.$transaction(async (tx) => {
+        const awardedPoints = mission.points;
 
-    const completedMission = await this.prisma.userMission.create({
-      data: {
-        userId,
-        missionId,
-      },
-    });
+        // 1. Beri poin ke pengguna yang menyelesaikan misi
+        await tx.user.update({
+          where: { id: userId },
+          data: { points: { increment: awardedPoints } },
+        });
 
-    return completedMission;
+        // =================================================================
+        // ▼▼▼▼▼▼▼▼▼▼▼▼▼ KODE BONUS REFERRAL BERKELANJUTAN ▼▼▼▼▼▼▼▼▼▼▼▼▼
+        // =================================================================
+        
+        // 2. Cek apakah pengguna ini diundang oleh seseorang
+        if (user.referredById) {
+          const commissionPoints = Math.floor(awardedPoints * this.referralCommissionRate);
+          
+          if (commissionPoints > 0) {
+            // Jika ya, tambahkan poin komisi ke pengundangnya (referrer)
+            await tx.user.update({
+              where: { id: user.referredById },
+              data: { points: { increment: commissionPoints } },
+            });
+            this.logger.log(`Memberikan ${commissionPoints} poin komisi ke referrer ${user.referredById}`);
+          }
+        }
+        
+        // =================================================================
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+        // =================================================================
+
+        // 3. Tandai misi selesai agar tidak bisa diklaim lagi
+        await tx.completedMission.create({
+          data: { userId, missionId },
+        });
+
+        return {
+          success: true,
+          message: `Misi selesai! Anda mendapatkan ${awardedPoints} poin.`,
+        };
+      });
+    } else {
+      throw new BadRequestException('Syarat misi belum terpenuhi.');
+    }
   }
 }
+

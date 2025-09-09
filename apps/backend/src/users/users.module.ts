@@ -1,16 +1,12 @@
-// LOKASI FILE: apps/backend/src/users/users.module.ts
-// ---------------------------------------------------
-
 import { Module } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { UsersController, MeController } from './users.controller';
+import { UsersController } from './users.controller'; // <-- Import UsersController
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [UsersController, MeController],
   providers: [UsersService],
+  controllers: [UsersController], // <-- Daftarkan UsersController di sini
   exports: [UsersService],
 })
 export class UsersModule {}
-
