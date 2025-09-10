@@ -1,11 +1,12 @@
+// src/indexer/indexer.service.ts
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LeaderboardsService } from '../leaderboards/leaderboards.service';
 import { ConfigService } from '@nestjs/config';
-import { ethers } from 'ethers'; // Diaktifkan untuk implementasi nyata
-import { LeaderboardsModule } from '../leaderboards/leaderboards.module';
-// Placeholder untuk ABI (Application Binary Interface) dari smart contract Anda.
-// Anda harus menggantinya dengan ABI JSON dari kontrak Anda yang sudah di-compile.
+import { ethers } from 'ethers';
+import Decimal from 'decimal.js';
+
 const YOUR_CONTRACT_ABI = [
   "event Swapped(address indexed user, uint256 amountIn, uint256 amountOut)",
   "event Staked(address indexed user, uint256 amount)",
@@ -24,6 +25,10 @@ export class IndexerService implements OnModuleInit {
   private readonly logger = new Logger(IndexerService.name);
   private provider: ethers.JsonRpcProvider;
   private contract: ethers.Contract;
+  private CONFIRMATIONS = parseInt(process.env.CONFIRMATIONS_REQUIRED || '6', 10);
+
+  // cache decimals if you know underlying token addresses
+  private decimalsCache = new Map<string, number>();
 
   constructor(
     private prisma: PrismaService,
@@ -37,9 +42,7 @@ export class IndexerService implements OnModuleInit {
     const contractAddress = this.configService.get<string>('YOUR_CONTRACT_ADDRESS');
 
     if (!rpcUrl || !contractAddress) {
-      this.logger.error(
-        'RPC_URL atau YOUR_CONTRACT_ADDRESS tidak disetel di .env. Indexer tidak akan berjalan.',
-      );
+      this.logger.error('RPC_URL atau YOUR_CONTRACT_ADDRESS tidak disetel di .env. Indexer tidak akan berjalan.');
       return;
     }
 
@@ -47,19 +50,284 @@ export class IndexerService implements OnModuleInit {
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
       this.contract = new ethers.Contract(contractAddress, YOUR_CONTRACT_ABI, this.provider);
       this.listenToChainEvents();
+      this.logger.log('IndexerService siap.');
     } catch (error) {
       this.logger.error('Gagal menginisialisasi koneksi Ethers.js', error);
     }
   }
 
-  /**
-   * Menemukan pengguna berdasarkan alamat wallet atau membuatnya jika tidak ada.
-   * Juga memastikan profil DeFi untuk pengguna tersebut ada.
-   * Ini adalah fungsi inti untuk memastikan semua event diproses untuk pengguna yang valid.
-   * @param walletAddress Alamat wallet dari event on-chain.
-   * @returns ID pengguna internal (UUID).
-   */
-  private async findOrCreateUserAndProfile(walletAddress: string): Promise<string> {
+  // ---------- Prisma helpers ----------
+  private async alreadyProcessed(txHash: string, logIndex: number): Promise<boolean> {
+    const rec = await this.prisma.eventProcessed.findUnique({
+      where: { txHash_logIndex: { txHash, logIndex } } as any
+    }).catch(()=>null);
+    return !!rec;
+  }
+
+  private async markProcessed(
+    txHash: string,
+    logIndex: number,
+    contractAddr: string,
+    eventName: string,
+    blockNumber: bigint,
+    confirmed = false
+  ) {
+    await this.prisma.eventProcessed.create({
+      data: { txHash, logIndex, contractAddr, eventName, blockNumber, confirmed }
+    }).catch(err => {
+      this.logger.warn('markProcessed failed', err);
+    });
+  }
+
+  // ---------- Utility ----------
+  private async hasEnoughConfirmations(blockNumber: number): Promise<boolean> {
+    const head = await this.provider.getBlockNumber();
+    return (head - blockNumber) >= this.CONFIRMATIONS;
+  }
+
+  private async getTokenDecimals(tokenAddress: string): Promise<number> {
+    if (!tokenAddress) return 18;
+    if (this.decimalsCache.has(tokenAddress)) return this.decimalsCache.get(tokenAddress);
+    try {
+      const erc20 = new ethers.Contract(tokenAddress, ['function decimals() view returns (uint8)'], this.provider);
+      const d = await erc20.decimals();
+      const n = Number(d);
+      this.decimalsCache.set(tokenAddress, n);
+      return n;
+    } catch (err) {
+      this.logger.warn(`Gagal ambil decimals untuk ${tokenAddress}, fallback 18`);
+      this.decimalsCache.set(tokenAddress, 18);
+      return 18;
+    }
+  }
+
+  private formatAmountDecimal(raw: ethers.BigNumberish, decimals = 18): Decimal {
+    const s = ethers.formatUnits(raw, decimals); // string
+    return new Decimal(s);
+  }
+
+  // Stub: implement price oracle (Chainlink/offchain)
+  private async getPriceUsd(tokenAddress: string | null, timestampSec: number): Promise<Decimal | null> {
+    // TODO: integrasikan source harga. Return Decimal or null if unknown.
+    return null;
+  }
+
+  // ---------- Event listeners ----------
+  private listenToChainEvents() {
+    this.logger.log(`Mulai mendengarkan event dari kontrak di alamat ${this.contract.address}`);
+
+    // Use rest args: event args then last arg is “event”
+    this.contract.on('Swapped', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeProcessSwapEvent(args.slice(0, -1), event); } catch(e){ this.logger.error(e); }
+    });
+
+    this.contract.on('Staked', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeUpdateStaking(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
+    });
+
+    this.contract.on('Unstaked', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeUpdateStaking(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
+    });
+
+    this.contract.on('Harvested', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeProcessHarvest(args.slice(0, -1), event); } catch(e){ this.logger.error(e); }
+    });
+
+    this.contract.on('Supplied', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeLendSupply(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
+    });
+
+    this.contract.on('Withdrawn', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeLendSupply(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
+    });
+
+    this.contract.on('Borrowed', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeLendBorrow(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
+    });
+
+    this.contract.on('Repaid', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeLendBorrow(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
+    });
+
+    this.contract.on('LiquidityAdded', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeAmmLiquidity(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
+    });
+
+    this.contract.on('LiquidityRemoved', async (...args: any[]) => {
+      const event = args[args.length - 1];
+      try { await this.safeAmmLiquidity(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
+    });
+  }
+
+  // ---------- Safe processors ----------
+  private async safeProcessSwapEvent(args: any[], event: any) {
+    // args: user, amountIn, amountOut
+    const [user, rawAmountIn] = args;
+    const txHash = event.transactionHash;
+    const logIndex = Number(event.logIndex);
+    const blockNumber = Number(event.blockNumber);
+
+    if (await this.alreadyProcessed(txHash, logIndex)) return;
+    if (!await this.hasEnoughConfirmations(blockNumber)) {
+      this.logger.log(`Swap ${txHash}:${logIndex} belum konfirmasi cukup, dilewati.`);
+      return;
+    }
+
+    // WARNING: if token decimals unknown, SC should emit token address.
+    const decimals = 18;
+    const amt = this.formatAmountDecimal(rawAmountIn, decimals);
+
+    // price convert optional
+    const block = await this.provider.getBlock(blockNumber);
+    const price = await this.getPriceUsd(null, block.timestamp);
+    const usd = price ? amt.mul(price) : amt; // if price null we keep token units
+
+    const userId = await this.findOrCreateUserAndProfile(user);
+    // prisma increment supports strings or Decimal
+    await this.prisma.deFiProfile.update({
+      where: { userId },
+      data: {
+        totalSwapVolume: { increment: usd.toString() },
+        swapCount: { increment: 1 },
+        lastUpdatedBlock: BigInt(blockNumber),
+      }
+    });
+
+    await this.markProcessed(txHash, logIndex, event.address, 'Swapped', BigInt(blockNumber), true);
+    await this.leaderboardsService.updateLeaderboardEntry('SWAP_VOLUME', userId, usd.toString());
+    this.logger.log(`Processed Swap ${txHash}:${logIndex} user=${user}`);
+  }
+
+  private async safeUpdateStaking(args: any[], event: any, isStake: boolean) {
+    const [user, rawAmount] = args;
+    const txHash = event.transactionHash;
+    const logIndex = Number(event.logIndex);
+    const blockNumber = Number(event.blockNumber);
+    if (await this.alreadyProcessed(txHash, logIndex)) return;
+    if (!await this.hasEnoughConfirmations(blockNumber)) return;
+
+    const amt = this.formatAmountDecimal(rawAmount, 18);
+    const signed = isStake ? amt : amt.neg();
+
+    const userId = await this.findOrCreateUserAndProfile(user);
+    await this.prisma.deFiProfile.update({
+      where: { userId },
+      data: {
+        totalStakingVolume: { increment: signed.toString() },
+        lastUpdatedBlock: BigInt(blockNumber),
+      }
+    });
+
+    await this.markProcessed(txHash, logIndex, event.address, isStake ? 'Staked' : 'Unstaked', BigInt(blockNumber), true);
+    this.logger.log(`${isStake ? 'Staked' : 'Unstaked'} processed ${txHash}:${logIndex}`);
+  }
+
+  private async safeProcessHarvest(args: any[], event: any) {
+    const [user] = args;
+    const txHash = event.transactionHash;
+    const logIndex = Number(event.logIndex);
+    const blockNumber = Number(event.blockNumber);
+    if (await this.alreadyProcessed(txHash, logIndex)) return;
+    if (!await this.hasEnoughConfirmations(blockNumber)) return;
+
+    const userId = await this.findOrCreateUserAndProfile(user);
+    await this.prisma.deFiProfile.update({
+      where: { userId },
+      data: {
+        harvestCount: { increment: 1 },
+        lastUpdatedBlock: BigInt(blockNumber)
+      }
+    });
+
+    await this.markProcessed(txHash, logIndex, event.address, 'Harvested', BigInt(blockNumber), true);
+    this.logger.log(`Harvest processed ${txHash}:${logIndex} user=${user}`);
+  }
+
+  private async safeLendSupply(args: any[], event: any, isSupply: boolean) {
+    const [user, rawAmount] = args;
+    const txHash = event.transactionHash;
+    const logIndex = Number(event.logIndex);
+    const blockNumber = Number(event.blockNumber);
+    if (await this.alreadyProcessed(txHash, logIndex)) return;
+    if (!await this.hasEnoughConfirmations(blockNumber)) return;
+
+    const amt = this.formatAmountDecimal(rawAmount, 18);
+    const signed = isSupply ? amt : amt.neg();
+
+    const userId = await this.findOrCreateUserAndProfile(user);
+    await this.prisma.deFiProfile.update({
+      where: { userId },
+      data: {
+        totalLendSupplyVolume: { increment: signed.toString() },
+        lastUpdatedBlock: BigInt(blockNumber)
+      }
+    });
+
+    await this.markProcessed(txHash, logIndex, event.address, isSupply ? 'Supplied' : 'Withdrawn', BigInt(blockNumber), true);
+    this.logger.log(`Lend supply processed ${txHash}:${logIndex}`);
+  }
+
+  private async safeLendBorrow(args: any[], event: any, isBorrow: boolean) {
+    const [user, rawAmount] = args;
+    const txHash = event.transactionHash;
+    const logIndex = Number(event.logIndex);
+    const blockNumber = Number(event.blockNumber);
+    if (await this.alreadyProcessed(txHash, logIndex)) return;
+    if (!await this.hasEnoughConfirmations(blockNumber)) return;
+
+    const amt = this.formatAmountDecimal(rawAmount, 18);
+    const signed = isBorrow ? amt : amt.neg();
+
+    const userId = await this.findOrCreateUserAndProfile(user);
+    await this.prisma.deFiProfile.update({
+      where: { userId },
+      data: {
+        totalLendBorrowVolume: { increment: signed.toString() },
+        lastUpdatedBlock: BigInt(blockNumber)
+      }
+    });
+
+    await this.markProcessed(txHash, logIndex, event.address, isBorrow ? 'Borrowed' : 'Repaid', BigInt(blockNumber), true);
+    this.logger.log(`Lend borrow processed ${txHash}:${logIndex}`);
+  }
+
+  private async safeAmmLiquidity(args: any[], event: any, isAdd: boolean) {
+    const [user, rawA, rawB] = args;
+    const txHash = event.transactionHash;
+    const logIndex = Number(event.logIndex);
+    const blockNumber = Number(event.blockNumber);
+    if (await this.alreadyProcessed(txHash, logIndex)) return;
+    if (!await this.hasEnoughConfirmations(blockNumber)) return;
+
+    const a = this.formatAmountDecimal(rawA, 18);
+    const b = this.formatAmountDecimal(rawB, 18);
+    const total = a.plus(b);
+    const signed = isAdd ? total : total.neg();
+
+    const userId = await this.findOrCreateUserAndProfile(user);
+    await this.prisma.deFiProfile.update({
+      where: { userId },
+      data: {
+        totalAmmLiquidityVolume: { increment: signed.toString() },
+        lastUpdatedBlock: BigInt(blockNumber)
+      }
+    });
+
+    await this.markProcessed(txHash, logIndex, event.address, isAdd ? 'LiquidityAdded' : 'LiquidityRemoved', BigInt(blockNumber), true);
+    this.logger.log(`AMM ${isAdd ? 'add' : 'remove'} processed ${txHash}:${logIndex}`);
+  }
+
+  // ---------- Small helper: create user/profile ----------
+  private async findOrCreateUserAndProfile(walletAddress: string) {
     const lowercasedAddress = walletAddress.toLowerCase();
     const user = await this.prisma.user.upsert({
       where: { walletAddress: lowercasedAddress },
@@ -67,7 +335,6 @@ export class IndexerService implements OnModuleInit {
       create: { walletAddress: lowercasedAddress },
     });
 
-    // Pastikan DeFiProfile ada untuk pengguna ini
     await this.prisma.deFiProfile.upsert({
       where: { userId: user.id },
       update: {},
@@ -75,146 +342,5 @@ export class IndexerService implements OnModuleInit {
     });
 
     return user.id;
-  }
-
-  /**
-   * Listener utama yang mengikat fungsi-fungsi proses ke event smart contract.
-   */
-  private listenToChainEvents() {
-    this.logger.log(`Mulai mendengarkan event dari kontrak di alamat ${this.contract.address}`);
-
-    // Gunakan void untuk eksplisit fire-and-forget agar niat tidak berubah (sama seperti versi asli)
-    this.contract.on('Swapped', (user: string, amountIn: bigint) => {
-      void this.processSwapEvent(user, parseFloat(ethers.formatEther(amountIn)));
-    });
-
-    this.contract.on('Staked', (user: string, amount: bigint) => {
-      void this.updateStakingVolume(user, parseFloat(ethers.formatEther(amount)));
-    });
-
-    this.contract.on('Unstaked', (user: string, amount: bigint) => {
-      void this.updateStakingVolume(user, -parseFloat(ethers.formatEther(amount))); // Kirim nilai negatif (sama seperti logika asli)
-    });
-
-    this.contract.on('Harvested', (user: string) => {
-      void this.processHarvestEvent(user);
-    });
-
-    this.contract.on('Supplied', (user: string, amount: bigint) => {
-      void this.updateLendSupplyVolume(user, parseFloat(ethers.formatEther(amount)));
-    });
-
-    this.contract.on('Withdrawn', (user: string, amount: bigint) => {
-      void this.updateLendSupplyVolume(user, -parseFloat(ethers.formatEther(amount)));
-    });
-
-    this.contract.on('Borrowed', (user: string, amount: bigint) => {
-      void this.updateLendBorrowVolume(user, parseFloat(ethers.formatEther(amount)));
-    });
-
-    this.contract.on('Repaid', (user: string, amount: bigint) => {
-      void this.updateLendBorrowVolume(user, -parseFloat(ethers.formatEther(amount)));
-    });
-
-    this.contract.on('LiquidityAdded', (user: string, amountA: bigint, amountB: bigint) => {
-      const totalAmount = parseFloat(ethers.formatEther(amountA)) + parseFloat(ethers.formatEther(amountB));
-      void this.updateAmmLiquidityVolume(user, totalAmount);
-    });
-
-    this.contract.on('LiquidityRemoved', (user: string, amountA: bigint, amountB: bigint) => {
-      const totalAmount = parseFloat(ethers.formatEther(amountA)) + parseFloat(ethers.formatEther(amountB));
-      void this.updateAmmLiquidityVolume(user, -totalAmount);
-    });
-  }
-
-  // --- Implementasi Logika untuk Setiap Event ---
-
-  async processSwapEvent(walletAddress: string, amountIn: number) {
-    try {
-      const userId = await this.findOrCreateUserAndProfile(walletAddress);
-      const updatedProfile = await this.prisma.deFiProfile.update({
-        where: { userId },
-        data: {
-          totalSwapVolume: { increment: amountIn },
-          swapCount: { increment: 1 },
-        },
-      });
-
-      await this.leaderboardsService.updateLeaderboardEntry('SWAP_VOLUME', userId, updatedProfile.totalSwapVolume);
-      this.logger.log(`Swap event diproses untuk user: ${userId}`);
-    } catch (error) {
-      this.logger.error(`Gagal memproses Swap event untuk ${walletAddress}`, error);
-    }
-  }
-
-  async updateStakingVolume(walletAddress: string, amount: number) {
-    try {
-      const userId = await this.findOrCreateUserAndProfile(walletAddress);
-      const updatedProfile = await this.prisma.deFiProfile.update({
-        where: { userId },
-        data: { totalStakingVolume: { increment: amount } },
-      });
-
-      await this.leaderboardsService.updateLeaderboardEntry('STAKING_VOLUME', userId, updatedProfile.totalStakingVolume);
-      this.logger.log(`Volume staking diupdate untuk user ${userId} sebesar ${amount}`);
-    } catch (error) {
-      this.logger.error(`Gagal mengupdate volume staking untuk ${walletAddress}`, error);
-    }
-  }
-
-  async processHarvestEvent(walletAddress: string) {
-    try {
-      const userId = await this.findOrCreateUserAndProfile(walletAddress);
-      await this.prisma.deFiProfile.update({
-        where: { userId },
-        data: { harvestCount: { increment: 1 } },
-      });
-      this.logger.log(`Harvest event diproses untuk user: ${userId}`);
-    } catch (error) {
-      this.logger.error(`Gagal memproses Harvest event untuk ${walletAddress}`, error);
-    }
-  }
-
-  async updateLendSupplyVolume(walletAddress: string, amount: number) {
-    try {
-      const userId = await this.findOrCreateUserAndProfile(walletAddress);
-      const updatedProfile = await this.prisma.deFiProfile.update({
-        where: { userId },
-        data: { totalLendSupplyVolume: { increment: amount } },
-      });
-
-      await this.leaderboardsService.updateLeaderboardEntry('LENDING_VOLUME', userId, updatedProfile.totalLendSupplyVolume);
-      this.logger.log(`Volume lend supply diupdate untuk user ${userId} sebesar ${amount}`);
-    } catch (error) {
-      this.logger.error(`Gagal mengupdate volume lend supply untuk ${walletAddress}`, error);
-    }
-  }
-
-  async updateLendBorrowVolume(walletAddress: string, amount: number) {
-    try {
-      const userId = await this.findOrCreateUserAndProfile(walletAddress);
-      await this.prisma.deFiProfile.update({
-        where: { userId },
-        data: { totalLendBorrowVolume: { increment: amount } },
-      });
-      this.logger.log(`Volume lend borrow diupdate untuk user ${userId} sebesar ${amount}`);
-    } catch (error) {
-      this.logger.error(`Gagal mengupdate volume lend borrow untuk ${walletAddress}`, error);
-    }
-  }
-
-  async updateAmmLiquidityVolume(walletAddress: string, amount: number) {
-    try {
-      const userId = await this.findOrCreateUserAndProfile(walletAddress);
-      const updatedProfile = await this.prisma.deFiProfile.update({
-        where: { userId },
-        data: { totalAmmLiquidityVolume: { increment: amount } },
-      });
-
-      await this.leaderboardsService.updateLeaderboardEntry('AMM_VOLUME', userId, updatedProfile.totalAmmLiquidityVolume);
-      this.logger.log(`Volume AMM liquidity diupdate untuk user ${userId} sebesar ${amount}`);
-    } catch (error) {
-      this.logger.error(`Gagal mengupdate volume AMM liquidity untuk ${walletAddress}`, error);
-    }
   }
 }

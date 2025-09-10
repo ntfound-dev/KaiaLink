@@ -1,5 +1,3 @@
-// File: apps/backend/prisma/schema.prisma
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "windows"]
@@ -11,7 +9,6 @@ datasource db {
 }
 
 // Model untuk Pengguna
-// Ini adalah model utama yang menyimpan semua data terkait pengguna.
 model User {
   id                    String             @id @default(uuid())
   walletAddress         String             @unique
@@ -20,70 +17,65 @@ model User {
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
 
-  // Data Akun Sosial Media (untuk binding)
   telegramHandle        String?            @unique
   discordId             String?            @unique
   twitterHandle         String?            @unique
   lineId                String?            @unique
 
-  // Data Blockchain (SBT, dll.)
   sbtTokenId            String?
   sbtContractAddress    String?
 
-  // Data Referral
   referredById          String?
   referredBy            User?              @relation("Referrals", fields: [referredById], references: [id])
   referrals             User[]             @relation("Referrals")
   referralCode          String             @unique @default(uuid())
 
-  // Data Airdrop
   isEligibleForAirdrop  Boolean            @default(false)
   hasClaimedAirdrop     Boolean            @default(false)
   airdropAmount         Int                @default(0)
 
-  // Relasi ke model lain
   completedMissions     CompletedMission[]
   deFiProfile           DeFiProfile?
-  leaderboardEntries    LeaderboardEntry[] // Relasi ke entri leaderboard
+  leaderboardEntries    LeaderboardEntry[]
 }
 
-// Model untuk Misi
-// Menyimpan daftar semua misi yang tersedia di platform.
+// Misi
 model Mission {
   id                Int                @id @default(autoincrement())
   title             String
   description       String
   points            Int
-  type              String             @unique // ID unik untuk logika verifikasi, misal: 'SWAP_VOLUME_100'
+  type              String             @unique
   isActive          Boolean            @default(true)
-  targetId          String?            // ID target untuk misi sosial, misal: ID Tweet, ID Grup Telegram
+  targetId          String?
 
   completedBy       CompletedMission[]
 }
 
-// Model Profil DeFi
-// Mencatat semua metrik on-chain pengguna yang dilacak oleh IndexerService.
+// Profil DeFi
 model DeFiProfile {
   id                      Int      @id @default(autoincrement())
   userId                  String   @unique
   user                    User     @relation(fields: [userId], references: [id])
   
-  totalSwapVolume         Decimal  @default(0)
+  totalSwapVolume         Decimal  @default("0")
   swapCount               Int      @default(0)
   
-  totalStakingVolume      Decimal  @default(0)
+  totalStakingVolume      Decimal  @default("0")
   harvestCount            Int      @default(0)
 
-  totalLendSupplyVolume   Decimal  @default(0)
-  totalLendBorrowVolume   Decimal  @default(0)
+  totalLendSupplyVolume   Decimal  @default("0")
+  totalLendBorrowVolume   Decimal  @default("0")
 
-  totalAmmLiquidityVolume Decimal  @default(0)
+  totalAmmLiquidityVolume Decimal  @default("0")
   
   lastUpdatedAt           DateTime @updatedAt
+
+  // Tambahan untuk rekonsiliasi/reorg:
+  lastUpdatedBlock        BigInt?
 }
 
-// Model Perantara untuk Misi yang Selesai
-// Mencatat rekor bahwa seorang user telah menyelesaikan sebuah misi.
+// Completed missions
 model CompletedMission {
   id          Int      @id @default(autoincrement())
   userId      String
@@ -93,23 +85,20 @@ model CompletedMission {
   user        User     @relation(fields: [userId], references: [id])
   mission     Mission  @relation(fields: [missionId], references: [id])
 
-  @@unique([userId, missionId]) // Memastikan user hanya bisa menyelesaikan satu misi sekali
+  @@unique([userId, missionId])
 }
 
-// --- MODEL BARU UNTUK LEADERBOARD ---
-
-// Model untuk mendefinisikan berbagai jenis leaderboard
+// Leaderboard models
 model Leaderboard {
   id          Int      @id @default(autoincrement())
-  name        String   @unique // Misal: "Poin Global", "Volume Swap Mingguan"
+  name        String   @unique
   description String?
-  type        String   // Misal: "POINTS", "SWAP_VOLUME"
-  resetCycle  String?  // Misal: "WEEKLY", "MONTHLY", "NEVER"
+  type        String
+  resetCycle  String?
   
   entries     LeaderboardEntry[]
 }
 
-// Model untuk menyimpan entri peringkat pengguna di setiap leaderboard
 model LeaderboardEntry {
   id            Int      @id @default(autoincrement())
   leaderboardId Int
@@ -119,9 +108,23 @@ model LeaderboardEntry {
   user          User     @relation(fields: [userId], references: [id])
   
   rank          Int
-  score         Decimal  // Menggunakan Decimal agar bisa menyimpan poin (Int) dan volume (Decimal)
-  
+  score         Decimal
+
   updatedAt     DateTime @updatedAt
 
-  @@unique([leaderboardId, userId]) // User hanya punya satu entri per leaderboard
+  @@unique([leaderboardId, userId])
+}
+
+// NEW: EventProcessed untuk idempotency dan reorg handling
+model EventProcessed {
+  txHash       String
+  logIndex     Int
+  contractAddr String
+  eventName    String
+  blockNumber  BigInt
+  confirmed    Boolean   @default(false)
+  processedAt  DateTime  @default(now())
+
+  @@id([txHash, logIndex])
+  @@index([contractAddr])
 }

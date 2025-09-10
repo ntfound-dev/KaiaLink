@@ -290,4 +290,19 @@ contract CToken is ERC20 {
         reserveFactorMantissa = newReserveFactorMantissa;
         emit NewReserveFactor(old, newReserveFactorMantissa);
     }
+
+    // definisi modifier (jika belum ada)
+    modifier onlyAdmin() {
+    require(msg.sender == admin, "CToken: only admin");
+     _;
+    }
+
+     // lalu fungsi: tambahkan modifier onlyAdmin
+    function _setReserveFactor(uint256 newReserveFactorMantissa) external onlyAdmin {
+    require(newReserveFactorMantissa <= MANTISSA, "CToken: bad reserve factor");
+    uint256 old = reserveFactorMantissa;
+    reserveFactorMantissa = newReserveFactorMantissa;
+    emit NewReserveFactor(old, newReserveFactorMantissa);
+}
+
 }
