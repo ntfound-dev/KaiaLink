@@ -129,3 +129,10 @@ model EventProcessed {
   @@id([txHash, logIndex])
   @@index([contractAddr])
 }
+
+model PlatformAnalytics {
+  id          String   @id @default(cuid())
+  category    String   @unique
+  totalTokens Decimal  @default(0)
+  updatedAt   DateTime @updatedAt
+}
