@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Capped.sol";
 import "@openzeppelin/contracts/access/extensions/AccessControlDefaultAdminRules.sol";
 
-contract LinkaTokenPlus is
+contract LinkaTestnet is
     ERC20,
     ERC20Burnable,
     ERC20Pausable,

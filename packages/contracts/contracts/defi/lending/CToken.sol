@@ -10,7 +10,7 @@ import "./Comptroller.sol";
 
 contract CToken is ERC20 {
     using SafeERC20 for IERC20;
-
+    address public admin;
     // Konstanta mantissa 1e18
     uint256 private constant MANTISSA = 1e18;
 
@@ -61,7 +61,8 @@ contract CToken is ERC20 {
         uint256 initialExchangeRateMantissa_, // contoh: 1e18 untuk 1:1
         uint256 reserveFactorMantissa_,       // contoh: 0 untuk awal
         string memory name_,
-        string memory symbol_
+        string memory symbol_,
+        address admin_
     ) ERC20(name_, symbol_) {
         require(underlying_ != address(0) && comptroller_ != address(0) && interestRateModel_ != address(0), "CToken: zero addr");
         require(initialExchangeRateMantissa_ > 0, "CToken: bad init exRate");
@@ -72,7 +73,7 @@ contract CToken is ERC20 {
         interestRateModel = InterestRateModel(interestRateModel_);
         initialExchangeRateMantissa = initialExchangeRateMantissa_;
         reserveFactorMantissa = reserveFactorMantissa_;
-
+        admin = admin_; 
         accrualBlockNumber = block.number;
         borrowIndex = MANTISSA; // mulai dari 1e18
     }
@@ -278,20 +279,6 @@ contract CToken is ERC20 {
         emit RepayBorrow(msg.sender, msg.sender, actualRepay, newPrincipal, totalBorrows);
     }
 
-    // =========================
-    // Admin-lite (optional)
-    // =========================
-
-    // Ubah reserve factor (jika nanti butuh kontrol)
-    function _setReserveFactor(uint256 newReserveFactorMantissa) external {
-        // Untuk sederhana, izinkan siapa pun pada PoC ini; di produksi tambahkan onlyAdmin
-        require(newReserveFactorMantissa <= MANTISSA, "CToken: bad reserve factor");
-        uint256 old = reserveFactorMantissa;
-        reserveFactorMantissa = newReserveFactorMantissa;
-        emit NewReserveFactor(old, newReserveFactorMantissa);
-    }
-
-    // definisi modifier (jika belum ada)
     modifier onlyAdmin() {
     require(msg.sender == admin, "CToken: only admin");
      _;

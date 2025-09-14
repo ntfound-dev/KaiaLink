@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 // optional: jika tidak dipakai, bisa dihapus untuk menghindari import tidak perlu
 // import "./CToken.sol";
+import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 contract Comptroller {
     // ==============
@@ -195,5 +196,10 @@ contract Comptroller {
 
     function collateralFactorMantissa(address cToken) external view returns (uint256) {
         return markets[cToken].collateralFactorMantissa;
+    }
+        AggregatorV3Interface public oracle;
+
+    function _setPriceOracle(address newOracle) external onlyAdmin {
+        oracle = AggregatorV3Interface(newOracle);
     }
 }

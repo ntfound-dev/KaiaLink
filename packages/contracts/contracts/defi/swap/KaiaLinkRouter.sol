@@ -288,5 +288,12 @@ function sortTokens(address tokenA, address tokenB) internal pure returns (addre
     (token0, token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
     require(token0 != address(0), "KaiaLinkRouter: ZERO_ADDRESS");
 }
-}
+// =================================================================
+// =========      FUNGSI VIEW PUBLIK UNTUK QUOTING       =========
+// =================================================================
 
+// TAMBAHKAN FUNGSI INI
+function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts) {
+    return getAmountsOut(factory, amountIn, path);
+}
+}

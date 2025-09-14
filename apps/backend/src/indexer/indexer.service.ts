@@ -1,13 +1,13 @@
 // src/indexer/indexer.service.ts
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LeaderboardsService } from '../leaderboards/leaderboards.service';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import Decimal from 'decimal.js';
 
-const YOUR_CONTRACT_ABI = [
+// ABI untuk event yang relevan dari kontrak DeFi
+const DEFI_CONTRACT_ABI = [
   "event Swapped(address indexed user, uint256 amountIn, uint256 amountOut)",
   "event Staked(address indexed user, uint256 amount)",
   "event Unstaked(address indexed user, uint256 amount)",
@@ -20,14 +20,19 @@ const YOUR_CONTRACT_ABI = [
   "event LiquidityRemoved(address indexed user, uint256 amountA, uint256 amountB)",
 ];
 
+// ABI untuk event mint dari kontrak SBT
+const SBT_CONTRACT_ABI = [
+  "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+];
+
 @Injectable()
 export class IndexerService implements OnModuleInit {
   private readonly logger = new Logger(IndexerService.name);
   private provider: ethers.JsonRpcProvider;
-  private contract: ethers.Contract;
+  private defiContract: ethers.Contract;
+  private sbtContract: ethers.Contract;
   private CONFIRMATIONS = parseInt(process.env.CONFIRMATIONS_REQUIRED || '6', 10);
 
-  // cache decimals if you know underlying token addresses
   private decimalsCache = new Map<string, number>();
 
   constructor(
@@ -39,16 +44,29 @@ export class IndexerService implements OnModuleInit {
   onModuleInit() {
     this.logger.log('Menginisialisasi Indexer Service...');
     const rpcUrl = this.configService.get<string>('RPC_URL');
-    const contractAddress = this.configService.get<string>('YOUR_CONTRACT_ADDRESS');
+    const defiContractAddress = this.configService.get<string>('YOUR_CONTRACT_ADDRESS');
+    const sbtContractAddress = this.configService.get<string>('SBT_CONTRACT_ADDRESS');
 
-    if (!rpcUrl || !contractAddress) {
-      this.logger.error('RPC_URL atau YOUR_CONTRACT_ADDRESS tidak disetel di .env. Indexer tidak akan berjalan.');
+    if (!rpcUrl) {
+      this.logger.error('RPC_URL tidak disetel di .env. Indexer tidak akan berjalan.');
       return;
     }
 
     try {
       this.provider = new ethers.JsonRpcProvider(rpcUrl);
-      this.contract = new ethers.Contract(contractAddress, YOUR_CONTRACT_ABI, this.provider);
+
+      if (defiContractAddress) {
+        this.defiContract = new ethers.Contract(defiContractAddress, DEFI_CONTRACT_ABI, this.provider);
+      } else {
+        this.logger.warn('YOUR_CONTRACT_ADDRESS tidak disetel. Indexer DeFi tidak akan berjalan.');
+      }
+
+      if (sbtContractAddress) {
+        this.sbtContract = new ethers.Contract(sbtContractAddress, SBT_CONTRACT_ABI, this.provider);
+      } else {
+        this.logger.warn('SBT_CONTRACT_ADDRESS tidak disetel. Indexer SBT tidak akan berjalan.');
+      }
+
       this.listenToChainEvents();
       this.logger.log('IndexerService siap.');
     } catch (error) {
@@ -56,11 +74,11 @@ export class IndexerService implements OnModuleInit {
     }
   }
 
-  // ---------- Prisma helpers ----------
+  // ---------- Prisma Helpers ----------
   private async alreadyProcessed(txHash: string, logIndex: number): Promise<boolean> {
     const rec = await this.prisma.eventProcessed.findUnique({
-      where: { txHash_logIndex: { txHash, logIndex } } as any
-    }).catch(()=>null);
+      where: { txHash_logIndex: { txHash, logIndex } } as any,
+    }).catch(() => null);
     return !!rec;
   }
 
@@ -70,24 +88,26 @@ export class IndexerService implements OnModuleInit {
     contractAddr: string,
     eventName: string,
     blockNumber: bigint,
-    confirmed = false
+    confirmed = true
   ) {
     await this.prisma.eventProcessed.create({
-      data: { txHash, logIndex, contractAddr, eventName, blockNumber, confirmed }
+      data: { txHash, logIndex, contractAddr, eventName, blockNumber, confirmed },
     }).catch(err => {
-      this.logger.warn('markProcessed failed', err);
+      this.logger.warn(`Gagal menandai event sebagai terproses: ${txHash}:${logIndex}`, err.message);
     });
   }
 
   // ---------- Utility ----------
   private async hasEnoughConfirmations(blockNumber: number): Promise<boolean> {
-    const head = await this.provider.getBlockNumber();
-    return (head - blockNumber) >= this.CONFIRMATIONS;
+    const latestBlock = await this.provider.getBlockNumber();
+    return (latestBlock - blockNumber) >= this.CONFIRMATIONS;
   }
-
+  
   private async getTokenDecimals(tokenAddress: string): Promise<number> {
     if (!tokenAddress) return 18;
-    if (this.decimalsCache.has(tokenAddress)) return this.decimalsCache.get(tokenAddress);
+    if (this.decimalsCache.has(tokenAddress)) {
+      return this.decimalsCache.get(tokenAddress)!;
+    }
     try {
       const erc20 = new ethers.Contract(tokenAddress, ['function decimals() view returns (uint8)'], this.provider);
       const d = await erc20.decimals();
@@ -95,104 +115,127 @@ export class IndexerService implements OnModuleInit {
       this.decimalsCache.set(tokenAddress, n);
       return n;
     } catch (err) {
-      this.logger.warn(`Gagal ambil decimals untuk ${tokenAddress}, fallback 18`);
+      this.logger.warn(`Gagal ambil decimals untuk ${tokenAddress}, menggunakan default 18`);
       this.decimalsCache.set(tokenAddress, 18);
       return 18;
     }
   }
 
   private formatAmountDecimal(raw: ethers.BigNumberish, decimals = 18): Decimal {
-    const s = ethers.formatUnits(raw, decimals); // string
+    const s = ethers.formatUnits(raw, decimals);
     return new Decimal(s);
   }
 
-  // Stub: implement price oracle (Chainlink/offchain)
   private async getPriceUsd(tokenAddress: string | null, timestampSec: number): Promise<Decimal | null> {
     // TODO: integrasikan source harga. Return Decimal or null if unknown.
     return null;
   }
 
-  // ---------- Event listeners ----------
+  // ---------- Event Listeners ----------
   private listenToChainEvents() {
-    this.logger.log(`Mulai mendengarkan event dari kontrak di alamat ${this.contract.address}`);
+    if (this.defiContract) {
+      this.logger.log(`Mulai mendengarkan event dari kontrak DeFi di alamat ${this.defiContract.address}`);
+      
+      this.defiContract.on('Swapped', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeProcessSwapEvent(args.slice(0, -1), event); } catch(e){ this.logger.error(e); }
+      });
+      this.defiContract.on('Staked', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeUpdateStaking(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
+      });
+      this.defiContract.on('Unstaked', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeUpdateStaking(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
+      });
+      this.defiContract.on('Harvested', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeProcessHarvest(args.slice(0, -1), event); } catch(e){ this.logger.error(e); }
+      });
+      this.defiContract.on('Supplied', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeLendSupply(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
+      });
+      this.defiContract.on('Withdrawn', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeLendSupply(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
+      });
+      this.defiContract.on('Borrowed', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeLendBorrow(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
+      });
+      this.defiContract.on('Repaid', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeLendBorrow(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
+      });
+      this.defiContract.on('LiquidityAdded', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeAmmLiquidity(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
+      });
+      this.defiContract.on('LiquidityRemoved', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try { await this.safeAmmLiquidity(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
+      });
+    }
 
-    // Use rest args: event args then last arg is “event”
-    this.contract.on('Swapped', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeProcessSwapEvent(args.slice(0, -1), event); } catch(e){ this.logger.error(e); }
-    });
-
-    this.contract.on('Staked', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeUpdateStaking(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
-    });
-
-    this.contract.on('Unstaked', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeUpdateStaking(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
-    });
-
-    this.contract.on('Harvested', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeProcessHarvest(args.slice(0, -1), event); } catch(e){ this.logger.error(e); }
-    });
-
-    this.contract.on('Supplied', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeLendSupply(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
-    });
-
-    this.contract.on('Withdrawn', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeLendSupply(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
-    });
-
-    this.contract.on('Borrowed', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeLendBorrow(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
-    });
-
-    this.contract.on('Repaid', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeLendBorrow(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
-    });
-
-    this.contract.on('LiquidityAdded', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeAmmLiquidity(args.slice(0, -1), event, true); } catch(e){ this.logger.error(e); }
-    });
-
-    this.contract.on('LiquidityRemoved', async (...args: any[]) => {
-      const event = args[args.length - 1];
-      try { await this.safeAmmLiquidity(args.slice(0, -1), event, false); } catch(e){ this.logger.error(e); }
-    });
+    if (this.sbtContract) {
+      this.logger.log(`Mulai mendengarkan event 'Transfer' dari kontrak SBT di ${this.sbtContract.address}`);
+      this.sbtContract.on('Transfer', async (...args: any[]) => {
+        const event = args[args.length - 1];
+        try {
+          if (args[0] === ethers.ZeroAddress) {
+            await this.safeProcessSbtMint(args.slice(0, -1), event);
+          }
+        } catch (e) {
+          this.logger.error(`Gagal memproses event mint SBT: ${e.message}`, e.stack);
+        }
+      });
+    }
   }
 
-  // ---------- Safe processors ----------
-  private async safeProcessSwapEvent(args: any[], event: any) {
-    // args: user, amountIn, amountOut
-    const [user, rawAmountIn] = args;
+  // ---------- Event Processors ----------
+
+  private async safeProcessSbtMint(args: any[], event: any) {
+    const [from, to, tokenId] = args;
+    const userAddress = to;
+    const sbtTokenId = BigInt(tokenId.toString());
     const txHash = event.transactionHash;
     const logIndex = Number(event.logIndex);
     const blockNumber = Number(event.blockNumber);
 
+    this.logger.log(`Mendeteksi event mint SBT untuk ${userAddress} dengan tokenId ${sbtTokenId} di blok ${blockNumber}`);
     if (await this.alreadyProcessed(txHash, logIndex)) return;
-    if (!await this.hasEnoughConfirmations(blockNumber)) {
-      this.logger.log(`Swap ${txHash}:${logIndex} belum konfirmasi cukup, dilewati.`);
-      return;
-    }
+    if (!await this.hasEnoughConfirmations(blockNumber)) return;
 
-    // WARNING: if token decimals unknown, SC should emit token address.
+    const userId = await this.findOrCreateUserAndProfile(userAddress);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        hasSbt: true,
+        sbtTokenId: sbtTokenId,
+        sbtContractAddress: event.address.toLowerCase(),
+      },
+    });
+
+    await this.markProcessed(txHash, logIndex, event.address, 'SbtMinted', BigInt(blockNumber), true);
+    this.logger.log(`✅ Berhasil memproses Mint SBT ${txHash}:${logIndex} untuk user=${userAddress}`);
+  }
+
+  private async safeProcessSwapEvent(args: any[], event: any) {
+    const [user, rawAmountIn] = args;
+    const txHash = event.transactionHash;
+    const logIndex = Number(event.logIndex);
+    const blockNumber = Number(event.blockNumber);
+    if (await this.alreadyProcessed(txHash, logIndex)) return;
+    if (!await this.hasEnoughConfirmations(blockNumber)) return;
+
     const decimals = 18;
     const amt = this.formatAmountDecimal(rawAmountIn, decimals);
-
-    // price convert optional
     const block = await this.provider.getBlock(blockNumber);
     const price = await this.getPriceUsd(null, block.timestamp);
-    const usd = price ? amt.mul(price) : amt; // if price null we keep token units
+    const usd = price ? amt.mul(price) : amt;
 
     const userId = await this.findOrCreateUserAndProfile(user);
-    // prisma increment supports strings or Decimal
     await this.prisma.deFiProfile.update({
       where: { userId },
       data: {
@@ -201,7 +244,6 @@ export class IndexerService implements OnModuleInit {
         lastUpdatedBlock: BigInt(blockNumber),
       }
     });
-
     await this.markProcessed(txHash, logIndex, event.address, 'Swapped', BigInt(blockNumber), true);
     await this.leaderboardsService.updateLeaderboardEntry('SWAP_VOLUME', userId, usd.toString());
     this.logger.log(`Processed Swap ${txHash}:${logIndex} user=${user}`);
@@ -217,7 +259,6 @@ export class IndexerService implements OnModuleInit {
 
     const amt = this.formatAmountDecimal(rawAmount, 18);
     const signed = isStake ? amt : amt.neg();
-
     const userId = await this.findOrCreateUserAndProfile(user);
     await this.prisma.deFiProfile.update({
       where: { userId },
@@ -226,7 +267,6 @@ export class IndexerService implements OnModuleInit {
         lastUpdatedBlock: BigInt(blockNumber),
       }
     });
-
     await this.markProcessed(txHash, logIndex, event.address, isStake ? 'Staked' : 'Unstaked', BigInt(blockNumber), true);
     this.logger.log(`${isStake ? 'Staked' : 'Unstaked'} processed ${txHash}:${logIndex}`);
   }
@@ -247,7 +287,6 @@ export class IndexerService implements OnModuleInit {
         lastUpdatedBlock: BigInt(blockNumber)
       }
     });
-
     await this.markProcessed(txHash, logIndex, event.address, 'Harvested', BigInt(blockNumber), true);
     this.logger.log(`Harvest processed ${txHash}:${logIndex} user=${user}`);
   }
@@ -262,7 +301,6 @@ export class IndexerService implements OnModuleInit {
 
     const amt = this.formatAmountDecimal(rawAmount, 18);
     const signed = isSupply ? amt : amt.neg();
-
     const userId = await this.findOrCreateUserAndProfile(user);
     await this.prisma.deFiProfile.update({
       where: { userId },
@@ -271,7 +309,6 @@ export class IndexerService implements OnModuleInit {
         lastUpdatedBlock: BigInt(blockNumber)
       }
     });
-
     await this.markProcessed(txHash, logIndex, event.address, isSupply ? 'Supplied' : 'Withdrawn', BigInt(blockNumber), true);
     this.logger.log(`Lend supply processed ${txHash}:${logIndex}`);
   }
@@ -286,7 +323,6 @@ export class IndexerService implements OnModuleInit {
 
     const amt = this.formatAmountDecimal(rawAmount, 18);
     const signed = isBorrow ? amt : amt.neg();
-
     const userId = await this.findOrCreateUserAndProfile(user);
     await this.prisma.deFiProfile.update({
       where: { userId },
@@ -295,7 +331,6 @@ export class IndexerService implements OnModuleInit {
         lastUpdatedBlock: BigInt(blockNumber)
       }
     });
-
     await this.markProcessed(txHash, logIndex, event.address, isBorrow ? 'Borrowed' : 'Repaid', BigInt(blockNumber), true);
     this.logger.log(`Lend borrow processed ${txHash}:${logIndex}`);
   }
@@ -312,7 +347,6 @@ export class IndexerService implements OnModuleInit {
     const b = this.formatAmountDecimal(rawB, 18);
     const total = a.plus(b);
     const signed = isAdd ? total : total.neg();
-
     const userId = await this.findOrCreateUserAndProfile(user);
     await this.prisma.deFiProfile.update({
       where: { userId },
@@ -321,26 +355,23 @@ export class IndexerService implements OnModuleInit {
         lastUpdatedBlock: BigInt(blockNumber)
       }
     });
-
     await this.markProcessed(txHash, logIndex, event.address, isAdd ? 'LiquidityAdded' : 'LiquidityRemoved', BigInt(blockNumber), true);
     this.logger.log(`AMM ${isAdd ? 'add' : 'remove'} processed ${txHash}:${logIndex}`);
   }
 
-  // ---------- Small helper: create user/profile ----------
-  private async findOrCreateUserAndProfile(walletAddress: string) {
+  // ---------- User Helper ----------
+  private async findOrCreateUserAndProfile(walletAddress: string): Promise<string> {
     const lowercasedAddress = walletAddress.toLowerCase();
     const user = await this.prisma.user.upsert({
       where: { walletAddress: lowercasedAddress },
       update: {},
       create: { walletAddress: lowercasedAddress },
     });
-
     await this.prisma.deFiProfile.upsert({
       where: { userId: user.id },
       update: {},
       create: { userId: user.id },
     });
-
     return user.id;
   }
 }

@@ -22,9 +22,10 @@ model User {
   twitterHandle         String?            @unique
   lineId                String?            @unique
 
-  sbtTokenId            String?
+  hasSbt                Boolean   @default(false)
+  sbtTokenId            BigInt? 
   sbtContractAddress    String?
-
+   
   referredById          String?
   referredBy            User?              @relation("Referrals", fields: [referredById], references: [id])
   referrals             User[]             @relation("Referrals")

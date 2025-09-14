@@ -1,14 +1,22 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-// ERC20 sederhana untuk testing (18 decimals)
-contract MockERC20 is ERC20, Ownable {
-    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) Ownable(msg.sender) {}
+contract MockERC20Decimals is ERC20 {
+    // Tambahkan variabel untuk desimal
+    uint8 private _decimals;
 
-    function mint(address to, uint256 amount) external onlyOwner {
+    constructor(string memory name, string memory symbol, uint8 decimals_) ERC20(name, symbol) {
+        _decimals = decimals_;
+    }
+
+    // Override fungsi decimals()
+    function decimals() public view virtual override returns (uint8) {
+        return _decimals;
+    }
+
+    function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }
 }
