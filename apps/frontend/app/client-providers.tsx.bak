@@ -1,0 +1,62 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
+
+export default function ClientProviders({ children }: { children: React.ReactNode }) {
+  const [WagmiWrapper, setWagmiWrapper] = useState<React.ComponentType<{ children: React.ReactNode }> | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        // dynamic import wagmi and your web3 config only in the browser
+        const [{ WagmiProvider }, wagmiModule] = await Promise.all([
+          import('wagmi').then(m => ({ WagmiProvider: (m as any).WagmiProvider ?? (m as any).WagmiConfig ?? (m as any).Provider })).catch(() => ({ WagmiProvider: null })),
+          import('@/lib/web3').catch(() => ({})),
+        ]);
+
+        // wagmi's API names/exports vary by version. Try to read "config" or "createClient" from the loaded module.
+        const loadedConfig = (wagmiModule && (wagmiModule as any).config) || (wagmiModule && (wagmiModule as any).default) || null;
+
+        // If wagmi isn't available or loadedConfig is null, fallback to no-op wrapper
+        const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+          if (WagmiProvider && loadedConfig) {
+            // @ts-ignore - runtime usage
+            return <WagmiProvider config={loadedConfig}>{children}</WagmiProvider>;
+          }
+          // fallback: return children unwrapped (no wallet features)
+          return <>{children}</>;
+        };
+
+        if (mounted) setWagmiWrapper(() => Wrapper);
+      } catch (e) {
+        console.warn('ClientProviders: failed to load wagmi or config dynamically', e);
+        if (mounted) setWagmiWrapper(() => ({ children }: any) => <>{children}</>);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, []);
+
+  // while loading just render children (no wallet)
+  if (!WagmiWrapper) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    );
+  }
+
+  // when loaded, render with WagmiWrapper + QueryClientProvider
+  return (
+    <WagmiWrapper>
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    </WagmiWrapper>
+  );
+}

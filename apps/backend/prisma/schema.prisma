@@ -8,126 +8,118 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Model untuk Pengguna
 model User {
-  id                    String             @id @default(uuid())
-  walletAddress         String             @unique
-  nonce                 String?
-  points                Int                @default(0)
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-
-  telegramHandle        String?            @unique
-  discordId             String?            @unique
-  twitterHandle         String?            @unique
-  lineId                String?            @unique
-
-  hasSbt                Boolean   @default(false)
-  sbtTokenId            BigInt? 
-  sbtContractAddress    String?
-   
-  referredById          String?
-  referredBy            User?              @relation("Referrals", fields: [referredById], references: [id])
-  referrals             User[]             @relation("Referrals")
-  referralCode          String             @unique @default(uuid())
-
-  isEligibleForAirdrop  Boolean            @default(false)
-  hasClaimedAirdrop     Boolean            @default(false)
-  airdropAmount         Int                @default(0)
-
-  completedMissions     CompletedMission[]
-  deFiProfile           DeFiProfile?
-  leaderboardEntries    LeaderboardEntry[]
+  id                   String             @id @default(uuid())
+  walletAddress        String             @unique
+  nonce                String?
+  points               Int                @default(0)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  telegramHandle       String?            @unique
+  discordId            String?            @unique
+  twitterHandle        String?            @unique
+  lineId               String?            @unique
+  sbtContractAddress   String?
+  referredById         String?
+  referralCode         String             @unique @default(uuid())
+  isEligibleForAirdrop Boolean            @default(false)
+  hasClaimedAirdrop    Boolean            @default(false)
+  airdropAmount        Int                @default(0)
+  hasSbt               Boolean            @default(false)
+  sbtTokenId           BigInt?
+  lineAccessToken      String?
+  lineRefreshToken     String?
+  discordAccessToken   String?
+  telegramId           String?
+  telegramLinkToken    String?            @unique
+  telegramTokenExpiry  DateTime?
+  xAccessToken         String?
+  xId                  String?
+  discordRefreshToken  String?
+  xRefreshToken        String?
+  completedMissions    CompletedMission[]
+  deFiProfile          DeFiProfile?
+  leaderboardEntries   LeaderboardEntry[]
+  referralPointsEarned Int      @default(0)
+  referredBy           User?              @relation("Referrals", fields: [referredById], references: [id])
+  referrals            User[]             @relation("Referrals")
 }
 
-// Misi
 model Mission {
-  id                Int                @id @default(autoincrement())
-  title             String
-  description       String
-  points            Int
-  type              String             @unique
-  isActive          Boolean            @default(true)
-  targetId          String?
+  id          Int                @id @default(autoincrement())
+  title       String
+  description String
+  points      Int
+  isActive    Boolean            @default(true)
+  targetId    String?
+  type        MissionType
+  completedBy CompletedMission[]
 
-  completedBy       CompletedMission[]
+  @@index([type])
 }
 
-// Profil DeFi
 model DeFiProfile {
   id                      Int      @id @default(autoincrement())
   userId                  String   @unique
-  user                    User     @relation(fields: [userId], references: [id])
-  
-  totalSwapVolume         Decimal  @default("0")
+  totalSwapVolume         Decimal  @default(0)
   swapCount               Int      @default(0)
-  
-  totalStakingVolume      Decimal  @default("0")
+  totalStakingVolume      Decimal  @default(0)
   harvestCount            Int      @default(0)
-
-  totalLendSupplyVolume   Decimal  @default("0")
-  totalLendBorrowVolume   Decimal  @default("0")
-
-  totalAmmLiquidityVolume Decimal  @default("0")
-  
+  totalLendSupplyVolume   Decimal  @default(0)
+  totalLendBorrowVolume   Decimal  @default(0)
+  totalAmmLiquidityVolume Decimal  @default(0)
   lastUpdatedAt           DateTime @updatedAt
-
-  // Tambahan untuk rekonsiliasi/reorg:
   lastUpdatedBlock        BigInt?
+  user                    User     @relation(fields: [userId], references: [id])
 }
 
-// Completed missions
 model CompletedMission {
   id          Int      @id @default(autoincrement())
   userId      String
   missionId   Int
   completedAt DateTime @default(now())
-  
-  user        User     @relation(fields: [userId], references: [id])
   mission     Mission  @relation(fields: [missionId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, missionId])
+  @@index([completedAt])
 }
 
-// Leaderboard models
 model Leaderboard {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
+  id          Int                @id @default(autoincrement())
+  name        String             @unique
   description String?
   type        String
   resetCycle  String?
-  
   entries     LeaderboardEntry[]
 }
 
 model LeaderboardEntry {
-  id            Int      @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   leaderboardId Int
-  leaderboard   Leaderboard @relation(fields: [leaderboardId], references: [id])
-  
   userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  
   rank          Int
   score         Decimal
-
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime    @updatedAt
+  leaderboard   Leaderboard @relation(fields: [leaderboardId], references: [id])
+  user          User        @relation(fields: [userId], references: [id])
 
   @@unique([leaderboardId, userId])
+  @@index([score])
 }
 
-// NEW: EventProcessed untuk idempotency dan reorg handling
 model EventProcessed {
   txHash       String
   logIndex     Int
   contractAddr String
   eventName    String
   blockNumber  BigInt
-  confirmed    Boolean   @default(false)
-  processedAt  DateTime  @default(now())
+  confirmed    Boolean  @default(false)
+  processedAt  DateTime @default(now())
 
   @@id([txHash, logIndex])
   @@index([contractAddr])
+  @@index([blockNumber])
 }
 
 model PlatformAnalytics {
@@ -135,4 +127,56 @@ model PlatformAnalytics {
   category    String   @unique
   totalTokens Decimal  @default(0)
   updatedAt   DateTime @updatedAt
+}
+
+enum MissionType {
+  JOIN_DISCORD_SERVER
+  LIKE_TWEET_X
+  JOIN_TELEGRAM_GROUP
+  ADD_LINE_OA
+  REFER_FRIEND
+  SWAP_VOLUME
+  STAKE_VOLUME
+  HARVEST_REWARDS
+  LENDING_VOLUME
+  AMM_LIQUIDITY_VOLUME
+  SWAP_COUNT_5
+  SWAP_VOLUME_100
+  HARVEST_REWARDS_ONCE
+}
+
+model AmmPool {
+  id            Int      @id @default(autoincrement())
+  pairAddress   String   @unique
+  tokenASymbol  String
+  tokenAAddress String
+  tokenBSymbol  String
+  tokenBAddress String
+  isActive      Boolean  @default(true)
+  // Data dinamis yang diisi oleh indexer
+  tvl           Decimal  @default(0)
+  volume24h     Decimal  @default(0)
+}
+
+model StakingFarm {
+  id              Int     @id @default(autoincrement())
+  pid             Int     @unique // Pool ID di smart contract MasterChef
+  lpTokenAddress  String
+  lpTokenName     String
+  isActive        Boolean @default(true)
+  // Data dinamis
+  apy             Decimal @default(0)
+  tvl             Decimal @default(0)
+}
+
+model LendingMarket {
+  id              Int     @id @default(autoincrement())
+  assetSymbol     String  @unique
+  contractAddress String
+  isActive        Boolean @default(true)
+  // Data dinamis
+  supplyApy       Decimal @default(0)
+  borrowApy       Decimal @default(0)
+  totalSupplied   Decimal @default(0)
+  totalBorrowed   Decimal @default(0)
 }

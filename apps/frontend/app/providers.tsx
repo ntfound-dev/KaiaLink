@@ -1,30 +1,13 @@
-// apps/frontend/app/client-providers.tsx
-'use client'; // <-- INI BARIS PALING PENTING
+// apps/frontend/app/providers.tsx
+import dynamic from 'next/dynamic';
+import React from 'react';
 
-import React, { useState, useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WagmiProvider } from 'wagmi';
-import { config } from '@/lib/web3';
+// client-providers.tsx should be a client component (starts with 'use client')
+// We dynamically import it with ssr: false so Next won't try to bundle any client-only wallet libs for the server.
+const ClientProviders = dynamic(() => import('./client-providers'), { ssr: false });
 
-const queryClient = new QueryClient();
-
-// Komponen ini memastikan WagmiProvider HANYA dirender di sisi KLIEN
-export function ClientProviders({ children }: { children: React.ReactNode }) {
-  const [isMounted, setIsMounted] = useState(false);
-  
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return null; // Atau tampilkan loading spinner
-  }
-
-  return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    </WagmiProvider>
-  );
+export default function Providers({ children }: { children: React.ReactNode }) {
+  return <ClientProviders>{children}</ClientProviders>;
 }
+
+export { Providers };

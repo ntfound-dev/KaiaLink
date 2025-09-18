@@ -1,125 +1,167 @@
-import type { UserProfile, Mission, Portfolio, GlobalStats, LeaderboardUser, LeaderboardTvlUser, LeaderboardReferralUser, ReferralData, AirdropData } from '@/types/shared';
+// apps/frontend/lib/api/mock.ts
+import type {
+  Profile,
+  Mission,
+  Portfolio,
+  GenericLeaderboardEntry,
+  ReferralData,
+  AirdropData,
+} from '@/types/shared';
 
-// ============================================================================
-// --- MOCK DATABASE (Satu sumber data palsu untuk seluruh aplikasi) ---
-// ============================================================================
+/**
+ * Mock API (development)
+ * - Menyertakan field wajib: Mission.isActive, AirdropData.hasClaimed
+ * - Struktur disesuaikan agar cocok dengan definitions di types/shared.ts
+ */
 
-const mockUser: UserProfile = {
-  lineUserId: 'U123456789',
+// helper latency
+const mockApiCall = <T>(data: T, delay = 400): Promise<T> =>
+  new Promise((resolve) => setTimeout(() => resolve(data), delay));
+
+// -------------------- Mock data --------------------
+
+const mockUser: Profile = {
   username: 'Budi (Simulasi)',
   walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
   points: 1250,
   level: 'Silver',
   sbtUrl: '/sbt-silver.png',
-  socials: { 
-    twitter: 'budisantoso',
-  },
+  socials: { twitter: 'budisantoso' },
 };
 
 const mockMissions: Mission[] = [
-  { id: 'tw-follow', type: 'social', title: 'Follow Twitter KaiaLink', description: 'Follow @kaialink untuk update terbaru.', points: 20, status: 'completed', actionUrl: 'https://twitter.com/kaialink' },
-  { id: 'tg-join', type: 'social', title: 'Gabung Grup Telegram', description: 'Bergabung dengan komunitas kami di Telegram.', points: 20, status: 'available', actionUrl: 'https://t.me/kaialink' },
-  { id: 'daily-checkin', type: 'social', title: 'Daily Check-in', description: 'Dapatkan poin bonus setiap hari!', points: 1, status: 'available' },
-  { id: 'tvl-lp', type: 'tvl', title: 'Sediakan Likuiditas', description: 'Sediakan likuiditas min. $50 di pool KAIA/USDT.', points: 500, status: 'available', actionUrl: '/defi/amm' },
+  {
+    id: 'tw-follow',
+    type: 'social',
+    title: 'Follow Twitter KaiaLink',
+    description: 'Follow @kaialink untuk update terbaru.',
+    points: 20,
+    status: 'completed',
+    actionUrl: 'https://twitter.com/kaialink',
+    isActive: false, // <-- required
+  },
+  {
+    id: 'tg-join',
+    type: 'social',
+    title: 'Gabung Grup Telegram',
+    description: 'Bergabung dengan komunitas kami di Telegram.',
+    points: 20,
+    status: 'available',
+    actionUrl: 'https://t.me/kaialink',
+    isActive: true, // <-- required
+  },
+  {
+    id: 'daily-checkin',
+    type: 'social',
+    title: 'Daily Check-in',
+    description: 'Dapatkan poin bonus setiap hari!',
+    points: 1,
+    status: 'available',
+    isActive: true, // <-- required
+  },
+  {
+    id: 'tvl-lp',
+    type: 'tvl',
+    title: 'Sediakan Likuiditas',
+    description: 'Sediakan likuiditas min. $50 di pool KAIA/USDT.',
+    points: 500,
+    status: 'available',
+    actionUrl: '/defi/amm',
+    isActive: true, // <-- required
+  },
 ];
-
-const mockGlobalStats: GlobalStats = {
-    totalTvl: 1234567.89,
-    swapVolume24h: 345678.90,
-    totalUsers: 1523,
-};
 
 const mockPortfolio: Portfolio = {
-  totalUsdValue: 5450.25,
+  totalUsdValue: '5450.25',
   positions: [
-    { id: 'amm1', type: 'amm', asset: 'USDT/LINKA LP', usdValue: 2500.00 },
-    { id: 'lend1', type: 'lending_supply', asset: 'KAIA', usdValue: 1500.00 },
-    { id: 'lend2', type: 'lending_borrow', asset: 'USDT', usdValue: -500.00 },
-    { id: 'stake1', type: 'staking', asset: 'USDT/LINKA LP Farm', usdValue: 1950.25 },
+    { id: 'amm1', type: 'AMM', asset: 'USDT/LINKA LP', usdValue: '2500.00' },
+    { id: 'lend1', type: 'Lending', asset: 'KAIA', usdValue: '1500.00' },
+    { id: 'lend2', type: 'Lending', asset: 'USDT (borrowed)', usdValue: '-500.00' },
+    { id: 'stake1', type: 'Staking', asset: 'USDT/LINKA LP Farm', usdValue: '1950.25' },
   ],
-  recentActivity: [
-      { id: 'act1', type: 'Swap', description: 'Menukar 100 USDT dengan 50 LINKA', timestamp: '5 menit lalu' },
-      { id: 'act2', type: 'Join Mission', description: 'Menyelesaikan misi Follow Twitter', timestamp: '2 jam lalu' },
-  ]
+  // removed recentActivity because Portfolio type doesn't include it in your types/shared.ts
 };
 
-const mockLeaderboardPoints: LeaderboardUser[] = [
-  { rank: 1, username: 'Dewi Lestari', points: 25000 },
-  { rank: 2, username: 'Budi Santoso', points: 1250 },
-  { rank: 3, username: 'Ahmad Yani', points: 980 },
-];
-
-const mockLeaderboardTvl: LeaderboardTvlUser[] = [
-  { rank: 1, username: 'Sultan DeFi', value: 150000.50 },
-  { rank: 2, username: 'Paus Kripto', value: 98000.75 },
-];
-
-const mockLeaderboardAmm: LeaderboardTvlUser[] = [
-    { rank: 1, username: 'LP Master', value: 85000.00 },
-];
-
-const mockLeaderboardLending: LeaderboardTvlUser[] = [
-    { rank: 1, username: 'Whale Lender', value: 120000.00 },
-];
-
-const mockLeaderboardStaking: LeaderboardTvlUser[] = [
-    { rank: 1, username: 'Farmer Sejati', value: 65000.00 },
-];
-
-const mockLeaderboardReferral: LeaderboardReferralUser[] = [
-    { rank: 1, username: 'Sang Konektor', referralCount: 52 },
-    { rank: 2, username: 'Dewi Lestari', referralCount: 35 },
-];
+const allMockLeaderboards: Record<string, GenericLeaderboardEntry[]> = {
+  points: [
+    { rank: 1, username: 'Dewi Lestari (mock)', value: 25000 },
+    { rank: 2, username: 'Budi Santoso (mock)', value: 18500 },
+  ],
+  swap: [{ rank: 1, username: 'Sultan Swap (mock)', value: 150000.5 }],
+  amm: [{ rank: 1, username: 'LP Master (mock)', value: 85000.0 }],
+  lending: [{ rank: 1, username: 'Whale Lender (mock)', value: 120000.0 }],
+  staking: [{ rank: 1, username: 'Farmer Sejati (mock)', value: 65000.0 }],
+  referral: [{ rank: 1, username: 'Sang Konektor (mock)', value: 52 }],
+};
 
 const mockReferralData: ReferralData = {
   referralCode: 'KAIALINK-BUDI77',
   totalReferrals: 5,
   totalBonusPoints: 150,
   referrals: [
-      { username: 'Siti', level: 'Silver', status: 'Qualified' },
-      { username: 'Eko', level: 'Bronze', status: 'Pending' },
-  ]
+    // Use fields expected by your ReferralData type (walletAddress/status here)
+    { walletAddress: '0xabc...', status: 'Qualified' },
+    { walletAddress: '0xdef...', status: 'Pending' },
+  ],
 };
 
 const mockAirdropData: AirdropData = {
   isEligible: true,
-  claimableAmount: 5230.50,
-  claimed: false,
+  claimableAmount: 5230.5,
+  hasClaimed: false, // <-- required field per your types/shared.ts
 };
 
-// ============================================================================
-// --- IMPLEMENTASI FUNGSI MOCK API ---
-// ============================================================================
+// -------------------- Mock API --------------------
 
-/** Fungsi pembantu untuk mensimulasikan panggilan API dengan delay. */
-const mockApiCall = <T>(data: T, delay = 700): Promise<T> => {
-    console.log(`%c[MODE SIMULASI] Mengembalikan data...`, 'color: #00AACC');
-    return new Promise(resolve => setTimeout(() => resolve(data), delay));
+const api = {
+  async getUserProfile(): Promise<Profile> {
+    return mockApiCall(mockUser, 300);
+  },
+
+  async getMissions(): Promise<Mission[]> {
+    return mockApiCall(mockMissions, 300);
+  },
+
+  async getPortfolio(): Promise<Portfolio> {
+    return mockApiCall(mockPortfolio, 350);
+  },
+
+  // Keep return type `any` for global stats if your types/shared doesn't export GlobalStats
+  async getGlobalStats(): Promise<any> {
+    return mockApiCall(
+      {
+        totalTvl: 1_234_567.89,
+        swapVolume24h: 345_678.9,
+        totalUsers: 1_523,
+      },
+      200
+    );
+  },
+
+  async getLeaderboard(category: string): Promise<GenericLeaderboardEntry[]> {
+    return mockApiCall(allMockLeaderboards[category] ?? [], 400);
+  },
+
+  async getReferralData(): Promise<ReferralData> {
+    return mockApiCall(mockReferralData, 300);
+  },
+
+  async getAirdropData(): Promise<AirdropData> {
+    return mockApiCall(mockAirdropData, 300);
+  },
+
+  async verifyMission(missionId: string): Promise<{ success: boolean }> {
+    const m = mockMissions.find((x) => x.id === missionId);
+    if (m) {
+      m.status = 'completed';
+      m.isActive = false;
+    }
+    return mockApiCall({ success: true }, 500);
+  },
+
+  async sendChatMessage(text: string): Promise<string> {
+    return mockApiCall(`Ini respons simulasi untuk "${text}".`, 600);
+  },
 };
 
-export const getUserProfile = () => mockApiCall(mockUser, 500);
-export const getMissions = () => mockApiCall(mockMissions);
-export const getPortfolio = () => mockApiCall(mockPortfolio, 600);
-export const getGlobalStats = () => mockApiCall(mockGlobalStats, 400);
-
-export const getLeaderboard = () => mockApiCall(mockLeaderboardPoints, 800);
-export const getLeaderboardTVL = () => mockApiCall(mockLeaderboardTvl, 900);
-export const getLeaderboardSwap = () => mockApiCall(mockLeaderboardTvl.slice(0,1), 950); // Menggunakan data TVL untuk demo
-export const getLeaderboardAmm = () => mockApiCall(mockLeaderboardAmm, 950);
-export const getLeaderboardLending = () => mockApiCall(mockLeaderboardLending, 950);
-export const getLeaderboardStaking = () => mockApiCall(mockLeaderboardStaking, 950);
-export const getLeaderboardReferral = () => mockApiCall(mockLeaderboardReferral, 850); 
-
-export const getReferralData = () => mockApiCall(mockReferralData, 600);
-export const getAirdropData = () => mockApiCall(mockAirdropData, 500);
-
-export const verifyMission = async (missionId: string): Promise<{ success: boolean }> => {
-  const mission = mockMissions.find(m => m.id === missionId);
-  if (mission) mission.status = 'completed';
-  return mockApiCall({ success: true }, 1000);
-};
-
-export const sendChatMessage = (text: string): Promise<string> => {
-  return mockApiCall(`Ini respons simulasi untuk "${text}".`, 1200);
-};
-
+export default api;

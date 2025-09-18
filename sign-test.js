@@ -5,10 +5,10 @@ const ethers = require('ethers');
 
 // Gunakan private key dari wallet tes yang sudah kita siapkan.
 // JANGAN GUNAKAN PRIVATE KEY ASLI ANDA.
-const privateKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'; 
+const privateKey = '0x93409643a7bb583b126c01f348483176142ba34264bc2d596c9f831e387cd7ee'; 
             
 // GANTI PESAN INI DENGAN PESAN YANG ANDA DAPATKAN DARI ENDPOINT /auth/signin
-const messageToSign = "Selamat datang di KaiaLink! Silakan tanda tangani pesan ini untuk login. Nonce: ISI DISINI"; 
+const messageToSign = "Selamat datang di KaiaLink! Silakan tanda tangani pesan ini untuk login. Nonce: fa4ab678-088e-483f-8bc1-baa148df5c7b"; 
 
 // --- SELESAI KONFIGURASI ---
 

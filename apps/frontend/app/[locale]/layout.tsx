@@ -1,30 +1,28 @@
-import type { Metadata } from 'next';
-import './../../styles/globals.css'; // Path perlu disesuaikan karena pindah folder
-import { ClientProviders } from '../client-providers'; // Path perlu disesuaikan
-import { I18nProvider } from '@/locales/provider';
-import { ReactNode } from 'react';
+// apps/frontend/app/[locale]/layout.tsx
+import '../../styles/globals.css';
+import { Providers } from '@/app/providers';
+import { Inter } from 'next/font/google';
 
-export const metadata: Metadata = {
-  title: 'KaiaLink dApp',
-  description: 'Onboarding DeFi via LINE',
+const inter = Inter({ subsets: ['latin'] });
+
+export const metadata = {
+  title: 'KaiaLink',
+  description: 'Your KaiaLink DApp',
 };
 
-// PERHATIKAN: Layout ini sekarang menerima 'params'
-export default function LocaleLayout({
+export default function RootLayout({
   children,
-  params: { locale }
+  params: { locale },
 }: {
-  children: ReactNode;
+  children: React.ReactNode;
   params: { locale: string };
 }) {
+  // Pastikan tidak ada teks/whitespace di luar tag <html>
   return (
-    // 'lang' sekarang dinamis dari URL
     <html lang={locale}>
-      <body>
-        {/* I18nProvider sekarang mendapatkan locale dari params */}
-        <I18nProvider locale={locale}>
-          <ClientProviders>{children}</ClientProviders>
-        </I18nProvider>
+      <head />
+      <body className={inter.className}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

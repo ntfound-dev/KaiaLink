@@ -1,32 +1,45 @@
+// apps/frontend/app/[locale]/(dapp)/defi/amm/page.tsx
 'use client';
-
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
 import { LiquidityPanel } from "@/components/defi/LiquidityPanel";
+import type { DeFiConfig, Pool, Address } from '@/types/shared';
 
-// Ganti dengan alamat kontrak asli Anda
-const availablePools = [
-  {
-    tokenA: { symbol: 'USDT', address: '0x...' as `0x${string}` },
-    tokenB: { symbol: 'LINKA', address: '0x...' as `0x${string}` },
-    pairAddress: '0x...' as `0x${string}`
-  },
-  {
-    tokenA: { symbol: 'USDT', address: '0x...' as `0x${string}` },
-    tokenB: { symbol: 'KAIA', address: '0x...' as `0x${string}` },
-    pairAddress: '0x...' as `0x${string}`
-  },
-];
+export default function AmmPage(): JSX.Element {
+  const { data: defiConfig, isLoading, error } = useQuery<DeFiConfig>({
+    queryKey: ['defiConfig'],
+    queryFn: async () => {
+      if (!api || typeof api.getAirdropData !== 'function') {
+        return undefined;
+      }
+      return await api.getAirdropData();
+    },
+    enabled: !!api && typeof api.getAirdropData === 'function',
+  });
 
-export default function AmmPage() {
+  if (isLoading) return <p>Memuat daftar pool...</p>;
+  if (error) return <p>Gagal memuat pool: {(error as Error)?.message ?? 'Unknown error'}</p>;
+
+  const availablePools: Pool[] = defiConfig?.pools ?? [];
+
   return (
-    <div className="space-y-6 mt-4">
-      {availablePools.map(pool => (
-        <LiquidityPanel
-          key={`${pool.tokenA.symbol}-${pool.tokenB.symbol}`}
-          tokenA={pool.tokenA}
-          tokenB={pool.tokenB}
-          pairAddress={pool.pairAddress}
-        />
-      ))}
+    <div className="mt-4 space-y-6">
+      {availablePools.map((pool: Pool) => {
+        // safe cast ke Address dengan fallback (jika data backend belum konsisten)
+        const tokenAAddr = (pool.tokenAAddress ?? '') as unknown as Address;
+        const tokenBAddr = (pool.tokenBAddress ?? '') as unknown as Address;
+        const pairAddr = (pool.pairAddress ?? `${tokenAAddr}-${tokenBAddr}`) as unknown as Address;
+
+        return (
+          <LiquidityPanel
+            key={pairAddr}
+            tokenA={{ symbol: pool.tokenASymbol ?? '', address: tokenAAddr }}
+            tokenB={{ symbol: pool.tokenBSymbol ?? '', address: tokenBAddr }}
+            pairAddress={pairAddr}
+          />
+        );
+      })}
     </div>
   );
 }

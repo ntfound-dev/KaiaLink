@@ -1,21 +1,22 @@
-// LOKASI FILE: apps/backend/src/leaderboards/leaderboards.controller.ts
-// ----------------------------------------------------------------------
-
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param, Query, ParseIntPipe } from '@nestjs/common';
 import { LeaderboardsService } from './leaderboards.service';
-import { ApiTags } from '@nestjs/swagger';
 
-@ApiTags('leaderboards')
 @Controller('leaderboards')
 export class LeaderboardsController {
   constructor(private readonly leaderboardsService: LeaderboardsService) {}
 
   /**
-   * Endpoint publik untuk mendapatkan papan peringkat.
-   * Tidak memerlukan token otentikasi.
+   * Endpoint ini akan menangani rute dinamis seperti:
+   * GET /leaderboards/points
+   * GET /leaderboards/swap
+   * GET /leaderboards/amm
    */
-  @Get()
-  getTopUsers() {
-    return this.leaderboardsService.getTopUsers();
+  @Get(':name')
+  async getLeaderboard(
+    @Param('name') name: string, // 1. Ambil 'name' dari parameter URL
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+  ) {
+    // 2. Panggil fungsi BARU 'getLeaderboardByName' di service dan teruskan 'name' ke dalamnya
+    return this.leaderboardsService.getLeaderboardByName(name, limit || 100);
   }
 }

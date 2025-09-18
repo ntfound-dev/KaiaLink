@@ -1,18 +1,38 @@
+// apps/frontend/app/[locale]/(dapp)/defi/lending/page.tsx
 'use client';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import LendingMarketPanel from '@/components/defi/LendingMarketPanel';
+import type { DeFiConfig, Market } from '@/types/shared';
 
-import { LendingMarketPanel } from "@/components/defi/LendingMarketPanel";
+export default function LendingPage(): JSX.Element {
+  const { data: defiConfig, isLoading, error } = useQuery<DeFiConfig>({
+    queryKey: ['defiConfig'],
+    queryFn: async () => {
+      if (!api || typeof api.getAirdropData !== 'function') {
+        return undefined;
+      }
+      return await api.getAirdropData();
+    },
+    enabled: !!api && typeof api.getAirdropData === 'function',
+  });
+  if (isLoading) return <p>Memuat market...</p>;
+  if (error) return <p>Gagal memuat market: {(error as Error)?.message ?? 'Unknown error'}</p>;
 
-// Ganti dengan data market asli Anda
-const availableMarkets = [
-  { asset: 'USDT', supplyApy: 7.5, borrowApy: 10.3 },
-  { asset: 'LINKA', supplyApy: 6.8, borrowApy: 9.5 },
-  { asset: 'KAIA', supplyApy: 5.2, borrowApy: 8.1 },
-];
+  const markets: Market[] = defiConfig?.markets ?? [];
 
-export default function LendingPage() {
+  // Map ke shape yang komponen harapkan
+  const mapped = markets.map((m) => ({
+    asset: m.asset ?? m.symbol ?? m.id,
+    supplyApy: typeof m.supplyApy === 'number' ? m.supplyApy : Number(m.supplyApy ?? 0),
+    borrowApy: typeof m.borrowApy === 'number' ? m.borrowApy : Number(m.borrowApy ?? 0),
+    // bila LendingMarketPanel butuh fields tambahan, tambahkan di sini
+  }));
+
   return (
-    <div className="space-y-6 mt-4">
-      {availableMarkets.map(market => (
+    <div className="mt-4 space-y-6">
+      {mapped.map((market) => (
         <LendingMarketPanel key={market.asset} market={market} />
       ))}
     </div>

@@ -1,13 +1,13 @@
+// apps/frontend/app/[locale]/(dapp)/layout.tsx
 'use client';
 
 import Header from '@/components/common/Header';
 import Footer from '@/components/common/Footer';
-import { AIChat } from '@/components/common/AIChat';
+import AIChat from '@/components/common/AIChat';
 
 /**
- * Ini adalah layout untuk semua halaman yang memerlukan login (di dalam grup /dapp).
- * Tugasnya adalah menyediakan struktur halaman yang konsisten (Header, Footer)
- * dan merender komponen global seperti AIChat.
+ * Layout untuk halaman yang memerlukan autentikasi / area dapp.
+ * Jangan render <html> atau <body> di sini.
  */
 export default function DappLayout({
   children,
@@ -21,7 +21,6 @@ export default function DappLayout({
         {children}
       </main>
       <Footer />
-      {/* Komponen Chatbot AI akan melayang di atas semua halaman */}
       <AIChat />
     </div>
   );

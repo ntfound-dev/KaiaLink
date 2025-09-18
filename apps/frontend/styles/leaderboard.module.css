@@ -1,0 +1,266 @@
+/* apps/frontend/styles/leaderboard.module.css */
+
+/* Variabel warna (bisa override via :root di globals jika perlu) */
+:global(:root) {
+  --bg: #ffffff;
+  --muted: #6b7280;
+  --muted-2: #9ca3af;
+  --surface: #f8fafc;
+  --border: #e6e9ee;
+  --accent: #2563eb;
+  --accent-600: #1d4ed8;
+  --card-shadow: 0 6px 18px rgba(17,24,39,0.06);
+  --positive: #16a34a;
+  --danger: #ef4444;
+  --glass: rgba(255,255,255,0.6);
+  --glass-blur: 6px;
+}
+
+/* Dark overrides (global) */
+:global(.dark) :global(:root) {
+  --bg: #0b1220;
+  --muted: #9ca3af;
+  --muted-2: #94a3b8;
+  --surface: #071022;
+  --border: rgba(255,255,255,0.06);
+  --accent: #60a5fa;
+  --accent-600: #3b82f6;
+  --card-shadow: 0 6px 18px rgba(2,6,23,0.6);
+  --glass: rgba(2,6,23,0.5);
+}
+
+/* Container utama */
+.leaderboardContainer {
+  background: linear-gradient(180deg, var(--bg) 0%, transparent 100%);
+  padding: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+  color: inherit;
+}
+
+/* MINI variant — compact, ideal for "apps line" small widgets */
+.leaderboardMini {
+  padding: 0.5rem;
+  max-width: 420px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.2));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 8px 24px rgba(2,6,23,0.08);
+  border: 1px solid rgba(0,0,0,0.04);
+}
+
+/* compact header for mini */
+.leaderboardMini .leaderboardHeaderTitle {
+  font-size: 1.1rem;
+  margin-bottom: 0.125rem;
+}
+.leaderboardMini .leaderboardHeaderSubtitle {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Header */
+.leaderboardHeaderTitle {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  margin: 0 0 0.25rem 0;
+}
+.leaderboardHeaderSubtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* Tab strip */
+.leaderboardTabs {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  padding: 0.25rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100,100,100,0.25) transparent;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+
+.leaderboardTabs::-webkit-scrollbar {
+  height: 8px;
+}
+.leaderboardTabs::-webkit-scrollbar-thumb {
+  background: rgba(100,100,100,0.18);
+  border-radius: 999px;
+}
+
+.tabButton {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0.9rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  transition: color .12s ease, border-color .12s ease, transform .06s ease;
+  border-radius: 6px 6px 0 0;
+}
+.tabButton:hover { transform: translateY(-1px); color: var(--accent-600); }
+
+.tabButton[aria-selected="true"],
+.tabButtonActive {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: linear-gradient(180deg, rgba(37,99,235,0.05), transparent 100%);
+}
+
+/* Card */
+.leaderboardCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+
+/* Table (desktop/full) */
+.leaderboardTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Segoe UI Mono", monospace;
+}
+.leaderboardTable thead th {
+  text-align: left;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--muted);
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.01));
+}
+.leaderboardTable tbody td {
+  padding: 0.9rem 1rem;
+  vertical-align: middle;
+  font-size: 0.98rem;
+  color: inherit;
+}
+
+/* MINI table variant (compact rows) */
+.leaderboardMini .leaderboardTable thead th { display: none; }
+.leaderboardMini .leaderboardTable tbody td {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.86rem;
+}
+
+/* Row */
+.leaderboardRow {
+  border-top: 1px solid var(--border);
+  transition: background .12s ease;
+}
+.leaderboardRow:hover { background: rgba(37,99,235,0.03); }
+
+/* compact row for mini: flex layout instead of full table */
+.leaderboardMini .leaderboardRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-top: none;
+  justify-content: space-between;
+}
+
+/* Rank cell */
+.leaderboardRank {
+  font-weight: 700;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Crown small */
+.leaderboardCrown {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  transform: translateY(-1px);
+  color: #f59e0b;
+}
+
+/* Avatar small (mini) */
+.leaderboardAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: inline-block;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.02));
+  border: 1px solid var(--border);
+}
+
+/* Username */
+.leaderboardUsername {
+  color: inherit;
+  font-weight: 600;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* small meta under username */
+.leaderboardMeta {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted-2);
+  margin-top: 0.125rem;
+}
+
+/* Value cell */
+.leaderboardValue {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  min-width: 72px;
+}
+
+/* Badge for change or highlight */
+.leaderboardBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.77rem;
+  font-weight: 700;
+  background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.35));
+  border: 1px solid rgba(0,0,0,0.04);
+}
+
+/* Positive / negative variants */
+.badgePositive { color: var(--positive); }
+.badgeNegative { color: var(--danger); }
+
+/* Empty / error / loading */
+.leaderboardEmpty,
+.leaderboardError,
+.leaderboardLoading {
+  padding: 2rem;
+  text-align: center;
+  color: var(--muted-2);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .leaderboardHeaderTitle { font-size: 1.4rem; }
+  .tabButton { padding: 0.45rem 0.7rem; font-size: 0.9rem; }
+  .leaderboardTable thead th { padding: 0.6rem 0.75rem; font-size: 0.85rem; }
+  .leaderboardTable tbody td { padding: 0.6rem 0.75rem; font-size: 0.9rem; }
+
+  /* specific tweaks for very small screens */
+  .leaderboardMini { max-width: 100%; padding: 0.5rem; }
+  .leaderboardAvatar { width: 30px; height: 30px; }
+  .leaderboardValue { min-width: 56px; font-size: 0.86rem; }
+}

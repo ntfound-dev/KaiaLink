@@ -1,121 +1,148 @@
 // apps/frontend/lib/api/real.ts
-
 import axios from 'axios';
 import type {
-  UserProfile,
+  Profile,
   Mission,
-  Portfolio,
-  GlobalStats,
-  LeaderboardUser,
-  LeaderboardTvlUser,
-  LeaderboardReferralUser,
   ReferralData,
   AirdropData,
-} from '@/types/shared'; // Pastikan path ini benar ke file shared.ts Anda
+  GenericLeaderboardEntry,
+} from '@/types/shared';
 
 // ============================================================================
-// --- KONFIGURASI KLIEN API ---
+// KONFIGURASI AXIOS CLIENT
 // ============================================================================
-
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL, // Contoh: http://localhost:3001/v1
+  baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
+  timeout: 15000,
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Interceptor untuk menambahkan token JWT secara otomatis ke setiap request
-apiClient.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('jwt_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+apiClient.interceptors.request.use(
+  (config) => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('jwt_token');
+      if (token) {
+        if (!config.headers) config.headers = {} as any;
+        (config.headers as any).Authorization = `Bearer ${token}`;
+      }
     }
-  }
-  return config;
-});
-
-// Interceptor untuk menangani error dari backend secara terpusat
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // Anda bisa menambahkan notifikasi global (seperti toast/snackbar) di sini
-    console.error('API Error:', error.response?.data?.message || error.message);
-    
-    if (error.response?.status === 401) {
-      // Logika untuk menangani sesi yang tidak valid (misal: logout otomatis)
-      // localStorage.removeItem('jwt_token');
-      // window.location.href = '/login';
-    }
-
-    return Promise.reject(error);
-  }
+    return config;
+  },
+  (error) => Promise.reject(error)
 );
 
-
 // ============================================================================
-// --- IMPLEMENTASI FUNGSI-FUNGSI API ---
+// API OBJECT (axios-based)
 // ============================================================================
+export const api = {
+  /** Mengambil profil pengguna yang sedang login. */
+  async getUserProfile(): Promise<Profile> {
+    const { data } = await apiClient.get('/users/me');
+    return data as Profile;
+  },
 
-/** Mengambil profil pengguna yang sedang login. */
-export const getUserProfile = async (): Promise<UserProfile> => {
-  const { data } = await apiClient.get('/users/profile');
-  return data;
-};
+  /** Alias / mapping ke Profile bila perlu. */
+  async getMyProfile(): Promise<Profile> {
+    const user = await this.getUserProfile();
+    return user as unknown as Profile;
+  },
 
-/** Mengambil daftar semua misi yang tersedia. */
-export const getMissions = async (): Promise<Mission[]> => {
-  const { data } = await apiClient.get('/missions');
-  return data;
-};
+  async getMissions(): Promise<Mission[]> {
+    const { data } = await apiClient.get('/missions');
+    const raw = data?.data ?? data?.missions ?? data;
+    if (Array.isArray(raw)) return raw as Mission[];
+    return [];
+  },
 
-/** Memverifikasi penyelesaian sebuah misi ke backend. */
-export const verifyMission = async (missionId: string): Promise<{ success: boolean }> => {
-  const { data } = await apiClient.post(`/missions/${missionId}/verify`);
-  return data;
-};
-
-/** Mengambil data portofolio DeFi pengguna. */
-export const getPortfolio = async (): Promise<Portfolio> => {
-  const { data } = await apiClient.get('/defi/portfolio');
-  return data;
-};
-
-/** Mengambil statistik global platform. */
-export const getGlobalStats = async (): Promise<GlobalStats> => {
-    const { data } = await apiClient.get('/stats/global');
+  async verifyMission(missionId: string | number): Promise<any> {
+    const { data } = await apiClient.post(`/missions/${missionId}/complete`);
     return data;
-};
+  },
 
+  async getLeaderboard(category: string): Promise<GenericLeaderboardEntry[]> {
+    const { data } = await apiClient.get(`/leaderboards/${category}`);
+    return data as GenericLeaderboardEntry[];
+  },
 
-// --- Leaderboards ---
+  async getReferralData(): Promise<ReferralData> {
+    const { data } = await apiClient.get('/referrals/my-referrals');
+    return data as ReferralData;
+  },
 
-/** Mengambil data leaderboard berdasarkan poin. */
-export const getLeaderboardPoints = async (): Promise<LeaderboardUser[]> => {
-  const { data } = await apiClient.get('/leaderboards/points');
-  return data;
-};
+  async getAirdropData(): Promise<AirdropData> {
+    const { data } = await apiClient.get('/airdrop/status');
+    return data as AirdropData;
+  },
 
-/** Mengambil data leaderboard berdasarkan TVL. */
-export const getLeaderboardTvl = async (): Promise<LeaderboardTvlUser[]> => {
-    const { data } = await apiClient.get('/leaderboards/tvl');
+  async sendChatMessage(message: string, history: any[]): Promise<string> {
+    const { data } = await apiClient.post('/ai-chat/send', { message, history });
+    return data?.response ?? data;
+  },
+
+  /** Mengirim permintaan untuk mengklaim airdrop. */
+  async claimAirdrop(): Promise<{ success: boolean; message: string }> {
+    const { data } = await apiClient.post('/airdrop/claim');
     return data;
+  },
 };
 
-/** Mengambil data leaderboard berdasarkan jumlah referral. */
-export const getLeaderboardReferrals = async (): Promise<LeaderboardReferralUser[]> => {
-    const { data } = await apiClient.get('/leaderboards/referrals');
-    return data;
+export const getMyProfile = async (): Promise<Profile> => {
+  return api.getMyProfile();
 };
 
+export default api;
 
-// --- Fitur Lain ---
+/* =========================================================================== */
+/* DeFi-specific typed helper API                                              */
+/* Jika backend punya endpoint /defi/config, typedApi.getDeFiConfig akan memanggilnya.
+   Kalau tidak ada, fungsi akan mengembalikan struktur default yang aman.        */
+/* =========================================================================== */
 
-/** Mengambil data referral pengguna. */
-export const getReferralData = async (): Promise<ReferralData> => {
-  const { data } = await apiClient.get('/referrals');
-  return data;
-};
+/** Minimal shapes — perpanjang sesuai struktur backendmu */
+export interface DeFiPool { [k: string]: any }
+export interface DeFiMarket { [k: string]: any }
+export interface DeFiFarm { [k: string]: any }
 
-/** Mengambil data status airdrop pengguna. */
-export const getAirdropData = async (): Promise<AirdropData> => {
-  const { data } = await apiClient.get('/airdrop/status');
-  return data;
+export interface DeFiConfig {
+  pools: DeFiPool[];
+  markets: DeFiMarket[];
+  farms: DeFiFarm[];
+  routerAddress?: `0x${string}` | string | undefined;
+  [k: string]: any;
+}
+
+export interface DeFiApi {
+  getDeFiConfig(): Promise<DeFiConfig>;
+  // tambah method lain kalau perlu
+}
+
+/**
+ * typedApi: memanggil endpoint /defi/config jika tersedia,
+ * dan memetakan hasilnya ke DeFiConfig. Jika request gagal,
+ * fungsi akan mengembalikan objek default yang aman.
+ */
+export const typedApi: DeFiApi = {
+  async getDeFiConfig(): Promise<DeFiConfig> {
+    try {
+      // Coba panggil endpoint yang umum dipakai untuk konfigurasi DeFi
+      const res = await apiClient.get('/defi/config');
+      const raw = res?.data ?? res;
+      const mapped: DeFiConfig = {
+        pools: raw?.pools ?? raw?.data?.pools ?? [],
+        markets: raw?.markets ?? raw?.data?.markets ?? [],
+        farms: raw?.farms ?? raw?.data?.farms ?? [],
+        routerAddress: raw?.routerAddress ?? raw?.data?.routerAddress ?? undefined,
+        ...raw,
+      };
+      return mapped;
+    } catch (err) {
+      // Fallback aman: kembalikan objek kosong terstruktur
+      return {
+        pools: [],
+        markets: [],
+        farms: [],
+        routerAddress: undefined,
+      };
+    }
+  },
 };

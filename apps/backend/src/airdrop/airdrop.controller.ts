@@ -1,23 +1,22 @@
-// LOKASI FILE: apps/backend/src/airdrop/airdrop.controller.ts
-import { Controller, Get, Post, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AirdropService } from './airdrop.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
 
-@ApiTags('airdrop')
 @Controller('airdrop')
-@UseGuards(JwtAuthGuard)
-@ApiBearerAuth()
 export class AirdropController {
   constructor(private readonly airdropService: AirdropService) {}
 
+  @UseGuards(AuthGuard('jwt'))
   @Get('status')
-  getAirdropStatus(@Request() req) {
-    return this.airdropService.getAirdropStatus(req.user.userId);
+  async getMyAirdropStatus(@Req() req) {
+    const userId = req.user.id;
+    return this.airdropService.getAirdropStatusForUser(userId);
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Post('claim')
-  claimAirdrop(@Request() req) {
-    return this.airdropService.claimAirdrop(req.user.userId);
+  async claimMyAirdrop(@Req() req) {
+    const userId = req.user.id;
+    return this.airdropService.claimAirdropForUser(userId);
   }
 }

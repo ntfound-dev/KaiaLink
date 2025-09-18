@@ -1,88 +1,168 @@
 'use client';
+
+import React from 'react';
+import '@/styles/profile.css';
+import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
-import WalletConnector from '@/components/common/WalletConnector';
+import api, { getMyProfile } from '@/lib/api';
+import type { Profile } from '@/types/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Repeat, Layers, Plus, Minus, Twitter, Send, Disc } from 'lucide-react';
+import { Medal, Users, CheckSquare, BarChart3, Twitter, Send, Disc, Gem } from 'lucide-react';
+import WalletConnector from '@/components/common/WalletConnector';
 
-export default function ProfilePage() {
-  const { data: user, isLoading: isUserLoading } = useQuery({ queryKey: ['userProfile'], queryFn: () => api.getUserProfile() });
-  const { data: portfolio, isLoading: isPortfolioLoading } = useQuery({ queryKey: ['portfolio'], queryFn: () => api.getPortfolio() });
+const StatCard = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) => (
+  <div className="stat-card">
+    <div className="left">
+      <span className="icon-badge">{icon}</span>
+      <span className="muted">{label}</span>
+    </div>
+    <div className="value">{value}</div>
+  </div>
+);
 
-  const isLoading = isUserLoading || isPortfolioLoading;
-  if (isLoading) return <div className="text-center p-10">Memuat profil dan portofolio...</div>;
+export default function ProfilePage(): JSX.Element {
+  const { data: profileData, isLoading, isError, error } = useQuery<Profile, Error>({
+    queryKey: ['myProfile'],
+    queryFn: () => getMyProfile(),
+    staleTime: 1000 * 60 * 30,
+  });
+
+  if (isLoading) return <div className="p-10 text-center">Memuat profil Anda...</div>;
+  if (isError) return <div className="p-10 text-center text-red-500">Gagal memuat profil: {error?.message}</div>;
+
+  const points = profileData?.points ?? 0;
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl md:text-4xl font-bold">Profil & Portofolio</h1>
-        <p className="text-gray-500">Detail akun dan ringkasan aset DeFi Anda.</p>
+    <div className="space-y-8 profile-root">
+      <div className="profile-header">
+        <h1 className="text-3xl font-bold md:text-4xl">Profil Pengguna</h1>
+        <p className="text-gray-500">Ringkasan poin, peringkat, dan aktivitas Anda.</p>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1 space-y-6">
-          <Card>
-            <CardHeader><CardTitle>Informasi Akun</CardTitle></CardHeader>
-            <CardContent>
-              <p><strong>Username:</strong> {user?.username}</p>
-              <p><strong>Level:</strong> <span className="font-semibold capitalize">{user?.level}</span></p>
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        {/* KOLOM KIRI: IDENTITAS + AKUN TERHUBUNG + SBT */}
+        <div className="space-y-6 lg:col-span-1">
+          <Card className="card">
+            <CardHeader className="card-header">
+              <CardTitle className="card-title">@{profileData?.username ?? 'user'}</CardTitle>
+            </CardHeader>
+            <CardContent className="card-content">
+              <p className="wallet-address">{profileData?.walletAddress ?? ''}</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader><CardTitle>Akun Terhubung</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <WalletConnector />
-              <div className="space-y-3 pt-4">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2"><Twitter size={20} /> Twitter</span>
-                  {user?.socials?.twitter ? <span className="text-sm font-semibold text-green-600">Terhubung: @{user.socials.twitter}</span> : <button className="text-sm text-blue-500">Hubungkan</button>}
+
+          <Card className="card">
+            <CardHeader className="card-header">
+              <CardTitle className="card-title">Akun Terhubung</CardTitle>
+            </CardHeader>
+            <CardContent className="card-content">
+              <div className="wallet-connector">
+                <WalletConnector />
+              </div>
+
+              <div className="socials pt-4 mt-4">
+                <div className="social-row">
+                  <span className="service-name">
+                    <Twitter size={20} /> Twitter
+                  </span>
+                  {profileData?.socials?.twitter ? (
+                    <span className="text-sm font-semibold text-green-600">Terhubung: @{profileData.socials.twitter}</span>
+                  ) : (
+                    <a href="/api/auth/twitter" className="link text-sm">Hubungkan</a>
+                  )}
                 </div>
+
+                <div className="social-row">
+                  <span className="service-name">
+                    <Disc size={20} /> Discord
+                  </span>
+                  {profileData?.socials?.discord ? (
+                    <span className="text-sm font-semibold text-green-600">Terhubung</span>
+                  ) : (
+                    <a href="/api/auth/discord" className="link text-sm">Hubungkan</a>
+                  )}
+                </div>
+
+                <div className="social-row">
+                  <span className="service-name">
+                    <Send size={20} /> Telegram
+                  </span>
+                  {profileData?.socials?.telegram ? (
+                    <span className="text-sm font-semibold text-green-600">Terhubung</span>
+                  ) : (
+                    <a href="/api/auth/telegram" className="link text-sm">Hubungkan</a>
+                  )}
+                </div>
+
+                <div className="social-row">
+                  <span className="service-name font-bold text-green-600">LINE</span>
+                  {profileData?.socials?.line ? (
+                    <span className="text-sm font-semibold text-green-600">Terhubung</span>
+                  ) : (
+                    <a href="/api/auth/line" className="link text-sm">Hubungkan</a>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* KARTU SBT */}
+          <Card className="card">
+            <CardHeader>
+              <CardTitle>Soulbound Token</CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-4">
+              <div className="rounded-full bg-gray-100 p-2">
+                {profileData?.hasSbt && profileData?.sbtUrl ? (
+                  // Jika sbtUrl berasal dari domain eksternal, pastikan menambahkannya ke next.config.js
+                  <Image src={profileData.sbtUrl} alt="User SBT" width={40} height={40} className="rounded-full" />
+                ) : (
+                  <Gem className="h-8 w-8 text-gray-400" />
+                )}
+              </div>
+              <div>
+                <p className="font-semibold">{profileData?.hasSbt ? 'Terverifikasi' : 'Belum Dimiliki'}</p>
+                <p className="text-xs text-gray-500">Tanda identitas on-chain Anda</p>
               </div>
             </CardContent>
           </Card>
         </div>
-        <div className="lg:col-span-2 space-y-6">
-           <Card>
-            <CardHeader>
-                <div className="flex justify-between items-center">
-                    <CardTitle>Portofolio Aset DeFi</CardTitle>
-                    <span className="font-bold text-2xl">${portfolio?.totalUsdValue.toFixed(2)}</span>
-                </div>
+
+        {/* KOLOM KANAN: STATISTIK & DETAIL */}
+        <div className="space-y-6 lg:col-span-2">
+          <Card className="card">
+            <CardHeader className="card-header">
+              <CardTitle className="card-title">Statistik Saya</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {portfolio?.positions.length > 0 ? portfolio?.positions.map((pos: any) => (
-                    <div key={pos.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-md border-b">
-                        <div className="flex items-center gap-3">
-                            {pos.type === 'amm' && <Layers className="w-5 h-5 text-blue-500"/>}
-                            {pos.type === 'lending_supply' && <Plus className="w-5 h-5 text-green-500"/>}
-                            {pos.type === 'lending_borrow' && <Minus className="w-5 h-5 text-red-500"/>}
-                            {pos.type === 'staking' && <Layers className="w-5 h-5 text-purple-500"/>}
-                            <div>
-                                <p className="font-semibold">{pos.asset}</p>
-                                <p className="text-xs text-gray-500 capitalize">{pos.type.replace('_', ' ')}</p>
-                            </div>
-                        </div>
-                        <span className="font-mono text-right font-semibold">${pos.usdValue.toFixed(2)}</span>
-                    </div>
-                )) : <p className="text-center text-gray-500 py-8">Anda belum memiliki posisi di DeFi.</p>}
-              </div>
+            <CardContent className="card-content grid grid-cols-1 gap-4 md:grid-cols-2">
+              <StatCard icon={<Medal className="text-yellow-500" />} label="Peringkat Poin" value={`#${profileData?.rank ?? 'N/A'}`} />
+              <StatCard icon={<BarChart3 className="text-blue-500" />} label="Total Poin" value={(points ?? 0).toLocaleString()} />
+              <StatCard icon={<Users className="text-green-500" />} label="Total Referral" value={profileData?.totalReferrals ?? 0} />
+              <StatCard icon={<CheckSquare className="text-purple-500" />} label="Misi Selesai" value={profileData?.missionsCompleted ?? 0} />
             </CardContent>
           </Card>
-          <Card>
-              <CardHeader><CardTitle>Aktivitas Terbaru</CardTitle></CardHeader>
-              <CardContent>
-                  <div className="space-y-3">
-                      {portfolio?.recentActivity.map((act: any) => (
-                          <div key={act.id} className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-3">
-                                  <Repeat className="w-4 h-4 text-gray-400"/>
-                                  <p>{act.description}</p>
-                              </div>
-                              <p className="text-gray-500">{act.timestamp}</p>
-                          </div>
-                      ))}
-                  </div>
-              </CardContent>
+
+          <Card className="card">
+            <CardHeader className="card-header">
+              <CardTitle className="card-title">Statistik On-Chain</CardTitle>
+            </CardHeader>
+            <CardContent className="card-content onchain">
+              {profileData?.defiStats ? (
+                <div className="space-y-3">
+                  <p>
+                    <strong>Total Volume Swap:</strong> ${profileData.defiStats.totalSwapVolume ? profileData.defiStats.totalSwapVolume.toLocaleString() : '0'}
+                  </p>
+                  <p>
+                    <strong>Total Volume Staking:</strong> ${profileData.defiStats.totalStakingVolume ? profileData.defiStats.totalStakingVolume.toLocaleString() : '0'}
+                  </p>
+                  <p>
+                    <strong>Total Volume Supply (Lending):</strong> ${profileData.defiStats.totalLendSupplyVolume ? profileData.defiStats.totalLendSupplyVolume.toLocaleString() : '0'}
+                  </p>
+                </div>
+              ) : (
+                <p className="empty-state">Belum ada aktivitas on-chain yang tercatat.</p>
+              )}
+            </CardContent>
           </Card>
         </div>
       </div>

@@ -1,124 +1,202 @@
-// File ini berisi semua definisi tipe data TypeScript
-// yang digunakan bersama antara frontend dan lapisan API.
+// apps/frontend/types/shared.ts
+// Versi tunggal, lengkap, dan backward-compatible dari definisi tipe yang
+// digunakan oleh frontend. Tujuan: meminimalkan breaking change sementara
+// menyediakan tipe yang jelas untuk UI dan model Prisma.
 
 // ============================================================================
-// --- ENUM & TIPE DASAR ---
-// PENINGKATAN: Menggunakan enum untuk tipe kategori agar terpusat dan aman dari typo.
+// ENUM & ALIAS
 // ============================================================================
-
-export enum PositionType {
-  AMM = 'amm',
-  LENDING_SUPPLY = 'lending_supply',
-  LENDING_BORROW = 'lending_borrow',
-  STAKING = 'staking',
-}
-
 export enum MissionType {
-    SOCIAL = 'social',
-    TVL = 'tvl',
+  SOCIAL = 'SOCIAL',
+  TVL = 'TVL',
+  JOIN_DISCORD_SERVER = 'JOIN_DISCORD_SERVER',
+  SWAP_COUNT_5 = 'SWAP_COUNT_5',
+  SWAP_VOLUME_100 = 'SWAP_VOLUME_100',
+  HARVEST_REWARDS_ONCE = 'HARVEST_REWARDS_ONCE',
 }
 
-export enum MissionStatus {
-    AVAILABLE = 'available',
-    COMPLETED = 'completed',
-    PENDING = 'pending',
-}
-
-// PENINGKATAN: Menggunakan tipe alias untuk kejelasan.
-type IsoDateString = string;
+export type IsoDateString = string;
+export type UsdValueString = string; // decimal values from Prisma serialized as string
 
 // ============================================================================
-// --- INTERFACE UTAMA ---
+// PRISMA / SERVER-SIDE MODELS (SESUAI DENGAN `schema.prisma`)
+// Simpan ini terpisah agar perubahan schema di backend dapat disinkronkan
+// tanpa memengaruhi tipe UI yang lebih longgar.
 // ============================================================================
 
-export interface UserProfile {
-  lineUserId: string;
-  username: string;
+export interface PrismaUserProfile {
+  id: string;
   walletAddress: string;
   points: number;
-  level: 'Bronze' | 'Silver' | 'Epic' | 'Legendary';
-  sbtUrl: string;
-  socials: { 
-    twitter?: string;
-    telegram?: string;
-    discord?: string;
-  };
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+
+  // Optional / nullable dari Prisma
+  nonce?: string | null;
+  telegramHandle?: string | null;
+  discordId?: string | null;
+  twitterHandle?: string | null;
+  lineId?: string | null;
+  lineAccessToken?: string | null;
+  lineRefreshToken?: string | null;
+
+  // SBT (kebanyakan BigInt/Address di-serialize sebagai string)
+  sbtTokenId?: string | null;
+  sbtContractAddress?: string | null;
+  hasSbt?: boolean | null; // boolean di server, bisa null
+
+  // Referral
+  referredById?: string | null;
+  referralCode?: string | null;
+
+  // Airdrop
+  isEligibleForAirdrop?: boolean;
+  hasClaimedAirdrop?: boolean;
+  airdropAmount?: number;
+
+  // Relasi
+  deFiProfile?: DeFiProfile | null;
+  [key: string]: any; // fallback untuk kolom lain
+}
+
+// ============================================================================
+// TIPE-TIPE UMUM / API
+// ============================================================================
+
+export interface DeFiProfile {
+  id: number | string;
+  userId: string;
+  totalSwapVolume: UsdValueString;
+  swapCount: number;
+  totalStakingVolume: UsdValueString;
+  harvestCount: number;
+  totalLendSupplyVolume: UsdValueString;
+  totalLendBorrowVolume: UsdValueString;
+  totalAmmLiquidityVolume: UsdValueString;
+  lastUpdatedAt: IsoDateString;
+  lastUpdatedBlock?: string | null; // BigInt -> string
 }
 
 export interface Mission {
+  isActive: boolean;
+  targetId?: string | null;
   id: string;
-  type: MissionType;
   title: string;
   description: string;
   points: number;
-  status: MissionStatus;
+  // backend menyederhanakan tipe menjadi sebuah kategori
+  type: 'social' | 'on-chain' | string;
+  status: 'completed' | 'available' | string;
   actionUrl?: string;
 }
 
-// PENINGKATAN: Menggunakan 'string' untuk nilai finansial agar presisi terjaga.
-export interface PortfolioPosition {
-  id: string;
-  type: PositionType;
-  asset: string;
-  usdValue: string; // Direkomendasikan string untuk presisi desimal
-}
-
-export interface Activity {
-  id: string;
-  type: 'Swap' | 'Join Mission' | 'Add Liquidity'; // Bisa juga dibuat enum jika jenisnya banyak
-  description: string;
-  timestamp: IsoDateString;
-}
-
-export interface Portfolio {
-  totalUsdValue: string; // Direkomendasikan string untuk presisi desimal
-  positions: PortfolioPosition[];
-  recentActivity: Activity[];
-}
-
-export interface GlobalStats {
-  totalTvl: string; // Direkomendasikan string untuk presisi desimal
-  swapVolume24h: string; // Direkomendasikan string untuk presisi desimal
-  totalUsers: number;
-}
-
-// --- Tipe Data untuk Leaderboard ---
-
-export interface LeaderboardUser {
+export interface GenericLeaderboardEntry {
   rank: number;
   username: string;
-  points: number;
+  value: number;
 }
 
-export interface LeaderboardTvlUser {
+export interface LeaderboardEntry {
   rank: number;
-  username: string;
-  value: string; // Direkomendasikan string untuk presisi desimal (nilai dalam USD)
-}
-
-export interface LeaderboardReferralUser {
-  rank: number;
-  username: string;
-  referralCount: number;
-}
-
-// --- Tipe Data untuk Fitur Lain ---
-
-export interface Referral {
-  username: string;
-  level: string;
-  status: 'Qualified' | 'Pending';
+  score: UsdValueString;
+  user: { walletAddress: string; [key: string]: any };
 }
 
 export interface ReferralData {
   referralCode: string;
   totalReferrals: number;
   totalBonusPoints: number;
-  referrals: Referral[];
+  referrals: { walletAddress: string; status: 'Qualified' | 'Pending' }[];
 }
 
 export interface AirdropData {
   isEligible: boolean;
-  claimableAmount: number; // Bisa juga string jika jumlahnya desimal
-  claimed: boolean;
+  claimableAmount: number;
+  hasClaimed: boolean;
 }
+
+export interface Portfolio {
+  totalUsdValue: UsdValueString;
+  positions: { id: string; type: 'Staking' | 'AMM' | 'Lending'; asset: string; usdValue: UsdValueString }[];
+}
+
+export type Socials = {
+  twitter?: string;
+  discord?: string;
+  telegram?: string;
+  line?: string;
+};
+
+export type DefiStats = {
+  totalSwapVolume?: number;
+  totalStakingVolume?: number;
+  totalLendSupplyVolume?: number;
+};
+
+// ============================================================================
+// TIPE UNTUK FRONTEND / UI (lebih longgar, semua properti optional)
+// Gunakan ini di komponen React dengan `Profile`.
+// Ini dibuat agar perubahan di backend tidak mudah memecah UI.
+// ============================================================================
+
+export interface Profile {
+  id?: string;
+  username?: string;
+  walletAddress?: string;
+  socials?: Socials;
+  rank?: number;
+  points?: number;
+  totalReferrals?: number;
+  missionsCompleted?: number;
+  defiStats?: DefiStats;
+  level?: string; // e.g. 'bronze' | 'silver' | 'gold'
+  hasSbt?: boolean;
+  sbtUrl?: string;
+  [key: string]: any; // fallback untuk properti tak terduga
+}
+
+export type Address = `0x${string}`;
+
+export type Pool = {
+  pairAddress: Address;
+  tokenASymbol?: string;
+  tokenAAddress?: Address;
+  tokenBSymbol?: string;
+  tokenBAddress?: Address;
+  [key: string]: any;
+};
+
+export type Market = {
+  // fields original
+  id: string;
+  symbol?: string;
+  // fields expected by LendingMarketPanel:
+  asset?: string;
+  supplyApy?: number;
+  borrowApy?: number;
+  [key: string]: any;
+};
+
+export type Farm = {
+  id: string;
+  rewardToken?: string;
+  [k: string]: any;
+};
+
+export type DeFiConfig = {
+  pools?: Pool[];
+  markets?: Market[];
+  farms?: Farm[];
+  routerAddress?: Address;
+  [key: string]: any;
+};
+
+
+
+
+// ============================================================================
+// EKSPORT DEFAULT / KOMBINASI (opsional)
+// Tidak perlu mengubah import di project jika mereka mengimpor nama-nama di atas.
+// ============================================================================
+
+export type { PrismaUserProfile as UserProfilePrisma };

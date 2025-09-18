@@ -1,0 +1,210 @@
+/* apps/frontend/styles/profile.module.css
+   Revisi: :global(:root), dark overrides, mini variant, focus/accessibility tweaks
+*/
+
+/* Global CSS variables (safe for CSS Modules) */
+:global(:root) {
+  --page-max-width: 1100px;
+  --page-pad: 1rem;
+  --bg: #0f172a; /* text color base */
+  --muted: #6b7280;
+  --card-bg: #ffffff;
+  --card-border: rgba(2,6,23,0.04);
+  --accent: #2563eb;
+  --success: #16a34a;
+  --radius: 12px;
+  --shadow: 0 8px 28px rgba(2,6,23,0.06);
+  --glass: rgba(255,255,255,0.72);
+  --glass-blur: 6px;
+}
+
+/* Dark mode overrides (global) */
+:global(.dark) :global(:root) {
+  --bg: #e6eef8;
+  --muted: #9aa4b2;
+  --card-bg: #071028;
+  --card-border: rgba(255,255,255,0.04);
+  --accent: #60a5fa;
+  --shadow: 0 8px 28px rgba(2,6,23,0.6);
+}
+
+/* Page / container */
+.profile-root {
+  color: var(--bg);
+  padding: var(--page-pad);
+  max-width: var(--page-max-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Header */
+.profile-header > h1 {
+  margin: 0;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.profile-header > p {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+
+/* Card (light-touch overrides) */
+.card {
+  background: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--card-border);
+}
+
+/* card header / title */
+.card-header {
+  padding: 1rem 1rem 0.5rem;
+}
+.card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+/* card content common */
+.card-content {
+  padding: 0.9rem 1rem 1.2rem;
+}
+
+/* Left column small pieces */
+.wallet-address {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Segoe UI Mono", monospace;
+  font-size: 0.9rem;
+  color: var(--muted);
+  word-break: break-all;
+  margin-bottom: 0.25rem;
+}
+
+/* wallet connector wrapper */
+.wallet-connector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-start;
+}
+
+/* socials */
+.socials { margin-top: 0.5rem; }
+.social-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px dashed rgba(0,0,0,0.03);
+}
+.social-row:last-child { border-bottom: none; }
+
+.service-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* link style (provider connection) */
+.link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+.link:hover { text-decoration: underline; }
+
+/* SBT / token avatar */
+.card-content img,
+.card-content .sbt-img {
+  border-radius: 9999px;
+  object-fit: cover;
+}
+
+/* Stat card grid / items */
+.stat-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(2,6,23,0.01), rgba(2,6,23,0.00));
+  border: 1px solid rgba(2,6,23,0.03);
+  min-height: 64px;
+}
+
+.stat-card .left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.icon-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
+  background: rgba(99,102,241,0.08);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.value {
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: var(--bg);
+  white-space: nowrap;
+}
+
+/* On-chain area & empty state */
+.onchain { padding: 0.25rem 0; }
+.onchain p { margin: 0.35rem 0; }
+.empty-state {
+  color: var(--muted);
+  padding: 0.5rem 0;
+  font-style: italic;
+}
+
+/* Responsive tweaks */
+@media (min-width: 1024px) {
+  .card-header { padding-left: 1.25rem; padding-right: 1.25rem; }
+  .card-content { padding-left: 1.25rem; padding-right: 1.25rem; }
+  .stat-card { min-height: 72px; }
+}
+
+/* small devices adjustments */
+@media (max-width: 640px) {
+  .stat-card { padding: 0.5rem; }
+  .icon-badge { width: 36px; height: 36px; }
+}
+
+/* Utilities */
+.text-success { color: var(--success); font-weight: 700; }
+.center { display: flex; align-items: center; justify-content: center; }
+
+/* MINI / compact variant (widget) */
+.profile-mini {
+  padding: 0.6rem;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--glass), rgba(255,255,255,0.25));
+  border: 1px solid var(--card-border);
+  box-shadow: 0 10px 20px rgba(2,6,23,0.06);
+  backdrop-filter: blur(var(--glass-blur));
+  max-width: 360px;
+}
+.profile-mini .card-content { padding: 0.6rem; }
+.profile-mini .card-header { padding: 0; }
+.profile-mini .card-title { font-size: 1rem; }

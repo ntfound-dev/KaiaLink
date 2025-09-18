@@ -5,12 +5,14 @@ import { Module } from '@nestjs/common';
 import { MissionsService } from './missions.service';
 import { MissionsController } from './missions.controller';
 import { PrismaModule } from '../prisma/prisma.module';
-import { LeaderboardsModule } from '../leaderboards/leaderboards.module'; // <-- 1. IMPORT LeaderboardsModule
+import { LeaderboardsModule } from '../leaderboards/leaderboards.module';
+import { SocialsModule } from '../socials/socials.module';
 
 @Module({
   imports: [
-    PrismaModule,
-    LeaderboardsModule, // <-- 2. TAMBAHKAN di sini agar MissionsService bisa inject LeaderboardsService
+    PrismaModule,         // Diperlukan agar bisa inject PrismaService
+    LeaderboardsModule,   // Diperlukan agar bisa inject LeaderboardsService
+    SocialsModule,        // Diperlukan agar bisa inject semua social services
   ],
   controllers: [MissionsController],
   providers: [MissionsService],

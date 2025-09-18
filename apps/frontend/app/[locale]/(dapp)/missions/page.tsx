@@ -1,95 +1,188 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, FC } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import axios from 'axios';
 import type { Mission } from '@/types/shared';
 import { CheckCircle, ExternalLink, LoaderCircle } from 'lucide-react';
+import '@/styles/missions.css'; // pastikan path ini sesuai alias/project
 
+// ============================================================================
+// KOMPONEN KARTU MISI
+// ============================================================================
+interface MissionCardProps {
+  mission: Mission;
+  onActionClick: (mission: Mission) => void;
+  isVerifying: boolean;
+}
+
+const MissionCard: FC<MissionCardProps> = ({ mission, onActionClick, isVerifying }) => (
+  <article className="mission-card" aria-labelledby={`mission-title-${mission.id}`}>
+    <div className="mission-info">
+      <h3 id={`mission-title-${mission.id}`} className="mission-title">
+        {mission.title}
+      </h3>
+      <p className="mission-desc">{mission.description}</p>
+    </div>
+
+    <div className="mission-meta">
+      <span className="mission-points">+{mission.points} Poin</span>
+
+      {mission.status === 'completed' ? (
+        <span className="mission-completed" aria-label="Selesai">
+          <CheckCircle className="icon-inline" /> Selesai
+        </span>
+      ) : (
+        <button
+          onClick={() => onActionClick(mission)}
+          disabled={isVerifying}
+          className="mission-btn"
+          aria-disabled={isVerifying}
+          aria-label={isVerifying ? 'Memproses...' : 'Kerjakan misi'}
+        >
+          {isVerifying ? (
+            <>
+              <span className="loader-circle" aria-hidden />
+              Memproses...
+            </>
+          ) : (
+            <>
+              {mission.actionUrl && <ExternalLink className="icon-inline" />}
+              Kerjakan
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  </article>
+);
+
+// ============================================================================
+// HALAMAN: MENAMPILKAN DUA KOLOM (SOSIAL & ON-CHAIN)
+// ============================================================================
 export default function MissionsPage() {
-  const [activeTab, setActiveTab] = useState<'social' | 'tvl'>('social');
+  const [verifyingMissionId, setVerifyingMissionId] = useState<string | number | null>(null);
   const queryClient = useQueryClient();
-  
+
+  // Ambil semua misi (normalisasi respons)
   const { data: missions = [], isLoading } = useQuery<Mission[]>({
     queryKey: ['missions'],
-    queryFn: () => api.getMissions(),
+    queryFn: async () => {
+      const res = await axios.get('/api/missions');
+      const raw = res.data?.data ?? res.data?.missions ?? res.data;
+      if (Array.isArray(raw)) return raw as Mission[];
+      return [] as Mission[];
+    },
+    staleTime: 30_000,
   });
 
-  const { mutate: performVerification, isPending: isVerifying, variables: verifyingMissionId } = useMutation({
-    mutationFn: (missionId: string) => api.verifyMission(missionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['missions'] });
+  // Mutation: panggil endpoint complete
+  const mutation = useMutation<any, any, string>({
+    mutationFn: (missionId: string) =>
+      axios.post(`/api/missions/${missionId}/complete`).then(r => r.data),
+
+    // Optimistic update
+    onMutate: async (missionId: string) => {
+      setVerifyingMissionId(missionId);
+      await queryClient.cancelQueries({ queryKey: ['missions'] });
+      const previousMissions = queryClient.getQueryData<Mission[]>(['missions']);
+
+      queryClient.setQueryData<Mission[]>(['missions'], (old = []) =>
+        old.map(m => (String(m.id) === String(missionId) ? { ...m, status: 'completed' } : m))
+      );
+
+      return { previousMissions };
     },
-    onError: (error) => {
-      alert(`Verifikasi gagal: ${error.message}`);
-    }
+
+    // Rollback ketika error
+    onError: (err: any, _newMissionId: string, context: any) => {
+      if (context?.previousMissions) {
+        queryClient.setQueryData(['missions'], context.previousMissions);
+      }
+      const message = err?.message ?? String(err) ?? 'Unknown error';
+      // Ganti alert dengan toast sesuai preferensi
+      alert(`Verifikasi gagal: ${message}`);
+      setVerifyingMissionId(null);
+    },
+
+    // Selalu refetch dan clear verifying state
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['missions'] });
+      setVerifyingMissionId(null);
+    },
   });
+
+  // kompatibilitas isPending / isLoading (tanstack v5 vs v4)
+  const mutationStatusIsPending = Boolean((mutation as any).isPending ?? (mutation as any).isLoading ?? false);
+
+  // wrapper untuk memanggil mutate
+  const completeMission = (missionId: string | number) => {
+    mutation.mutate(String(missionId));
+  };
 
   const handleActionClick = (mission: Mission) => {
     if (mission.actionUrl && mission.actionUrl.startsWith('http')) {
       window.open(mission.actionUrl, '_blank');
     }
-    // Verifikasi otomatis untuk misi simpel
+
+    // Verifikasi semua misi yang tidak punya URL eksternal atau misi check-in
     if (!mission.actionUrl || mission.id === 'daily-checkin') {
-      performVerification(mission.id);
+      completeMission(mission.id);
     }
   };
 
-  if (isLoading) return <div className="text-center p-10">Memuat daftar misi...</div>;
+  // Pisahkan menjadi dua list: sosial & on-chain (asumsi: mission.type === 'social' | 'tvl')
+  const socialMissions = missions.filter(m => m.type === 'social');
+  const onchainMissions = missions.filter(m => m.type === 'on-chain');
 
-  const filteredMissions = missions.filter(m => m.type === activeTab);
+  if (isLoading) return <div className="p-10 text-center">Memuat daftar misi...</div>;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl md:text-4xl font-bold">Daftar Misi</h1>
+    <main className="missions-page">
+      <header className="missions-header">
+        <h1 className="text-3xl font-bold md:text-4xl">Daftar Misi</h1>
         <p className="text-gray-500">Selesaikan tugas untuk mendapatkan poin dan naik level!</p>
-      </div>
+      </header>
 
-      <div className="flex border-b">
-        <button onClick={() => setActiveTab('social')} className={`px-6 py-2 text-lg ${activeTab === 'social' ? 'border-b-2 border-blue-500 font-bold text-blue-600' : 'text-gray-500'}`}>
-          Misi Sosial
-        </button>
-        <button onClick={() => setActiveTab('tvl')} className={`px-6 py-2 text-lg ${activeTab === 'tvl' ? 'border-b-2 border-blue-500 font-bold text-blue-600' : 'text-gray-500'}`}>
-          Misi On-Chain
-        </button>
-      </div>
+      <div className="missions-grid">
+        {/* KOLOM 1: MISI SOSIAL */}
+        <section className="missions-section" aria-labelledby="social-title">
+          <h2 id="social-title">Misi Sosial</h2>
+          <div>
+            {socialMissions.length > 0 ? (
+              socialMissions.map(mission => (
+                <MissionCard
+                  key={mission.id}
+                  mission={mission}
+                  onActionClick={handleActionClick}
+                  isVerifying={mutationStatusIsPending && String(verifyingMissionId) === String(mission.id)}
+                />
+              ))
+            ) : (
+              <div className="missions-empty">Tidak ada misi sosial saat ini.</div>
+            )}
+          </div>
+        </section>
 
-      <div className="space-y-4">
-        {filteredMissions.length > 0 ? (
-          filteredMissions.map((mission) => (
-            <div key={mission.id} className="p-5 border rounded-lg bg-white shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-              <div className="flex-1">
-                <h3 className="text-lg font-bold">{mission.title}</h3>
-                <p className="text-sm text-gray-600">{mission.description}</p>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="font-bold text-lg text-blue-500">+{mission.points} Poin</span>
-                {mission.status === 'completed' ? (
-                  <span className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold bg-green-100 text-green-800">
-                    <CheckCircle className="w-5 h-5 mr-2" /> Selesai
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => handleActionClick(mission)}
-                    disabled={isVerifying}
-                    className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 disabled:bg-gray-400 flex items-center"
-                  >
-                    {isVerifying && verifyingMissionId === mission.id ? (
-                      <LoaderCircle className="animate-spin w-5 h-5 mr-2" />
-                    ) : (
-                      mission.actionUrl && <ExternalLink className="w-5 h-5 mr-2" />
-                    )}
-                    {isVerifying && verifyingMissionId === mission.id ? 'Memproses...' : 'Kerjakan'}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
-        ) : (
-          <p className="text-center text-gray-500 py-10">Tidak ada misi yang tersedia di kategori ini.</p>
-        )}
+        {/* KOLOM 2: MISI ON-CHAIN */}
+        <section className="missions-section" aria-labelledby="onchain-title">
+          <h2 id="onchain-title">Misi On-Chain</h2>
+          <div>
+            {onchainMissions.length > 0 ? (
+              onchainMissions.map(mission => (
+                <MissionCard
+                  key={mission.id}
+                  mission={mission}
+                  onActionClick={handleActionClick}
+                  isVerifying={mutationStatusIsPending && String(verifyingMissionId) === String(mission.id)}
+                />
+              ))
+            ) : (
+              <div className="missions-empty">Tidak ada misi on-chain saat ini.</div>
+            )}
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

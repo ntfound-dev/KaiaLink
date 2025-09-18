@@ -1,4 +1,4 @@
-// LOKASI FILE: apps/backend/src/referrals/referrals.service.ts
+// apps/backend/src/referrals/referrals.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -79,5 +79,49 @@ export class ReferralsService {
       },
     });
     return referrals;
+  }
+
+  /**
+   * Safe getReferralDataForUser:
+   * - Does not assume a `referralPointsEarned` field exists in Prisma model.
+   * - Returns referralCode, number of referrals and a derived totalBonusPoints estimated
+   *   as count * REFERRER_REWARD_POINTS. If you track referralPointsEarned in DB, prefer
+   *   adding that field to Prisma and selecting it here.
+   */
+  async getReferralDataForUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        referralCode: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Pengguna tidak ditemukan.');
+    }
+
+    const referrals = await this.prisma.user.findMany({
+      where: { referredById: userId },
+      select: {
+        walletAddress: true,
+        createdAt: true,
+      },
+    });
+
+    const formattedReferrals = referrals.map((ref) => ({
+      username: `User...${ref.walletAddress.slice(-4)}`,
+      status: 'Qualified',
+      joinDate: ref.createdAt.toLocaleDateString(),
+    }));
+
+    // Estimate total bonus points as count * REFERRER_REWARD_POINTS (change if you actually store a different number).
+    const totalBonusPoints = referrals.length * REFERRER_REWARD_POINTS;
+
+    return {
+      referralCode: user.referralCode,
+      totalReferrals: formattedReferrals.length,
+      totalBonusPoints,
+      referrals: formattedReferrals,
+    };
   }
 }

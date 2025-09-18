@@ -1,0 +1,9 @@
+'use client';
+
+import React from 'react';
+
+export default function Providers({ children }: { children: React.ReactNode }) {
+  // sementara waktu jangan inisialisasi wagmi/wallet di server/build
+  // Nanti kita re-add wallet logic di komponen client-only terpisah
+  return <>{children}</>;
+}

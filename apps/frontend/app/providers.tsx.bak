@@ -1,0 +1,45 @@
+// apps/frontend/app/providers.tsx
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { WagmiConfig, createConfig } from 'wagmi';
+
+export default function Providers({ children }: { children: React.ReactNode }) {
+  const [wagmiConfig, setWagmiConfig] = useState<any>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      // lazy import wallet libraries so they are never required on server
+      const [{ createClient }, { publicProvider }, { WalletConnectConnector }] = await Promise.all([
+        import('wagmi'),
+        import('wagmi/providers/public'),
+        import('@wagmi/connectors') // adjust if you use different connector package
+      ]);
+
+      // Example minimal connector setup; adapt chain/provider as needed
+      const client = createClient({
+        autoConnect: false,
+        connectors: [
+          new WalletConnectConnector({
+            options: {
+              // put your WalletConnect options here
+            },
+          }),
+        ],
+        // ...other createClient options
+      });
+
+      if (mounted) setWagmiConfig(client);
+    })();
+
+    return () => { mounted = false; };
+  }, []);
+
+  if (!wagmiConfig) {
+    // render children without wallet/wagmi until client libs loaded
+    return <>{children}</>;
+  }
+
+  return <WagmiConfig config={wagmiConfig}>{children}</WagmiConfig>;
+}

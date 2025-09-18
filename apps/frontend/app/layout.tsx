@@ -1,11 +1,15 @@
-import { ReactNode } from 'react';
+// apps/frontend/app/layout.tsx  (ROOT layout — hanya satu file ini pakai <html> & <body>)
+import ClientProviders from "./client-providers"; // sesuaikan path jika beda
 
-// Root layout ini sekarang hanya shell dasar.
-// Semua logika akan ada di dalam app/[locale]/layout.tsx
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html>
-      <body>{children}</body>
+    <html lang="en">
+      <head />
+      <body>
+        <ClientProviders>
+          {children}
+        </ClientProviders>
+      </body>
     </html>
   );
 }

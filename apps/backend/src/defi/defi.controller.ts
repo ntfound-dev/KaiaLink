@@ -1,20 +1,23 @@
-import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param } from '@nestjs/common';
 import { DefiService } from './defi.service';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'; // <-- Import ApiResponse
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('defi')
 @Controller('defi')
 export class DefiController {
   constructor(private readonly defiService: DefiService) {}
 
-  /**
-   * Endpoint untuk mendapatkan data analitik dasar DeFi (misal: harga token).
-   * Endpoint ini bersifat publik dan tidak memerlukan autentikasi.
-   */
+  @Get('config')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ambil konfigurasi platform DeFi (pools, farms, markets)' })
+  @ApiResponse({ status: 200, description: 'Konfigurasi platform berhasil diambil.' })
+  async getPlatformConfig() {
+    return this.defiService.getPlatformConfig();
+  }
+
   @Get('analytics')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Dapatkan data analitik dasar DeFi' })
-  // --- REKOMENDASI: Tambahkan ApiResponse untuk dokumentasi yang lebih baik ---
+  @ApiOperation({ summary: 'Dapatkan data analitik dasar DeFi (harga token)' })
   @ApiResponse({
     status: 200,
     description: 'Data harga token berhasil diambil.',
@@ -26,13 +29,21 @@ export class DefiController {
       },
     },
   })
-  @ApiResponse({
-    status: 503,
-    description: 'Service tidak tersedia (jika API eksternal gagal dan tidak ada fallback).',
-  })
-  // --------------------------------------------------------------------------
   async getAnalytics() {
-    // --- PERBAIKAN: Panggil nama method yang benar ---
-    return this.defiService.getAnalyticsData(); // Sebelumnya: getAnalytics()
+    return this.defiService.getAnalyticsData(); // memanggil method yang sudah ada di service
+  }
+
+  @Get('stats')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Statistik singkat platform (counts)' })
+  async getStats() {
+    return this.defiService.getStats();
+  }
+
+  @Get('summary/:wallet')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ringkasan DeFi untuk sebuah wallet' })
+  async getUserSummary(@Param('wallet') wallet: string) {
+    return this.defiService.getUserDefiSummary(wallet);
   }
 }
