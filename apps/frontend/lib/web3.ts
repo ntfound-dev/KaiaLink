@@ -1,11 +1,13 @@
-/**
- * Lightweight web3 helpers — NO top-level imports from 'wagmi' or connectors.
- * This file only defines chain information and exposes helpers that client
- * code can call to dynamically import and initialize wagmi.
- */
+// apps/frontend/lib/web3.ts
+export interface MinimalChain {
+  id: number;
+  name: string;
+  nativeCurrency: { name: string; symbol: string; decimals: number };
+  rpcUrls: { default: { http: string[] } };
+  blockExplorers: { default: { name: string; url: string } };
+}
 
-/* --- Chain definitions --- */
-export const kaiaMainnet = {
+export const kaiaMainnet: MinimalChain = {
   id: 8217,
   name: 'Kaia Mainnet',
   nativeCurrency: { name: 'Kaia', symbol: 'KAIA', decimals: 18 },
@@ -13,7 +15,7 @@ export const kaiaMainnet = {
   blockExplorers: { default: { name: 'Klaytnscope', url: 'https://scope.klaytn.com' } },
 };
 
-export const kaiaTestnet = {
+export const kaiaTestnet: MinimalChain = {
   id: 1001,
   name: 'Kaia Testnet (Baobab)',
   nativeCurrency: { name: 'Kaia', symbol: 'KAIA', decimals: 18 },
@@ -21,15 +23,13 @@ export const kaiaTestnet = {
   blockExplorers: { default: { name: 'Klaytnscope Baobab', url: 'https://baobab.scope.klaytn.com' } },
 };
 
-/* Active chain chosen by env variable (string compare to 'mainnet') */
-export const activeChain = process.env.NEXT_PUBLIC_CHAIN_NAME === 'mainnet' ? kaiaMainnet : kaiaTestnet;
+export const activeChain: MinimalChain =
+  process.env.NEXT_PUBLIC_CHAIN_NAME === 'mainnet' ? kaiaMainnet : kaiaTestnet;
 
-/* WalletConnect project id helper — do NOT throw here so server build doesn't crash */
-export function getWalletConnectProjectId() {
+export function getWalletConnectProjectId(): string {
   return process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? '';
 }
 
-/* Export any small helpers you might need client-side */
 export default {
   activeChain,
   getWalletConnectProjectId,

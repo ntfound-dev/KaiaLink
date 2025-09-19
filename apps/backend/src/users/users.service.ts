@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { User, Prisma } from '@prisma/client';
+import { User } from '@prisma/client';
 import { UpdateUserDto } from '../common/dtos/update-user.dto';
 import * as crypto from 'crypto';
 import Decimal from 'decimal.js';
@@ -45,9 +45,6 @@ export class UsersService {
   // FUNGSI PENGAMBILAN DATA PROFIL
   // =================================================================
 
-  /**
-   * Mengambil data PENGGUNA DASAR berdasarkan ID (tanpa relasi).
-   */
   async findOne(id: string): Promise<Omit<User, 'nonce'>> {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
@@ -57,9 +54,11 @@ export class UsersService {
   }
 
   /**
-   * Mengambil data PROFIL LENGKAP untuk halaman profil di frontend.
+   * Ambil profil lengkap (dengan leaderboard, referrals, missions, dan deFiProfile).
    */
   async getFullProfile(userId: string) {
+    if (!userId) throw new BadRequestException('userId missing');
+
     const userWithCounts = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -90,7 +89,7 @@ export class UsersService {
       username: userWithCounts.twitterHandle || `User_${userWithCounts.walletAddress.slice(-4)}`,
       walletAddress: userWithCounts.walletAddress,
       points: userWithCounts.points,
-      rank: rank,
+      rank,
       referralCode: userWithCounts.referralCode,
       totalReferrals: userWithCounts._count.referrals,
       missionsCompleted: userWithCounts._count.completedMissions,
@@ -100,11 +99,13 @@ export class UsersService {
         discord: userWithCounts.discordId,
         line: userWithCounts.lineId,
       },
-      defiStats: userWithCounts.deFiProfile ? {
-        totalSwapVolume: new Decimal(userWithCounts.deFiProfile.totalSwapVolume).toNumber(),
-        totalStakingVolume: new Decimal(userWithCounts.deFiProfile.totalStakingVolume).toNumber(),
-        totalLendSupplyVolume: new Decimal(userWithCounts.deFiProfile.totalLendSupplyVolume).toNumber(),
-      } : null,
+      defiStats: userWithCounts.deFiProfile
+        ? {
+            totalSwapVolume: new Decimal(userWithCounts.deFiProfile.totalSwapVolume).toNumber(),
+            totalStakingVolume: new Decimal(userWithCounts.deFiProfile.totalStakingVolume).toNumber(),
+            totalLendSupplyVolume: new Decimal(userWithCounts.deFiProfile.totalLendSupplyVolume).toNumber(),
+          }
+        : null,
     };
   }
 
@@ -115,7 +116,7 @@ export class UsersService {
   async updateProfile(userId: string, data: UpdateUserDto) {
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
-      data: data,
+      data,
     });
     return this.sanitizeUser(updatedUser);
   }
@@ -124,5 +125,15 @@ export class UsersService {
     if (!user) return null;
     const { nonce, ...result } = user;
     return result;
+  }
+
+  async findById(id: string) {
+    if (!id) return null;
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
+  async findByWallet(walletAddress: string) {
+    if (!walletAddress) return null;
+    return this.prisma.user.findUnique({ where: { walletAddress } });
   }
 }

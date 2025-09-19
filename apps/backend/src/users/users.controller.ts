@@ -1,44 +1,70 @@
-import { Controller, Get, Patch, Body, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Body,
+  Req,
+  UseGuards,
+  Logger,
+  UnauthorizedException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UpdateUserDto } from '../common/dtos/update-user.dto';
 
-@ApiTags('Users & Profile') // Mengelompokkan endpoint ini di dokumentasi Swagger
+@ApiTags('Users & Profile')
 @Controller('users')
 export class UsersController {
+  private readonly logger = new Logger(UsersController.name);
+
   constructor(private readonly usersService: UsersService) {}
 
   /**
-   * Endpoint untuk mendapatkan profil LENGKAP milik pengguna yang sedang login.
-   * Rute: GET /users/me
+   * GET /users/me → ambil profil lengkap user login
    */
   @Get('me')
-  @UseGuards(AuthGuard('jwt')) // Melindungi rute dengan otentikasi JWT
-  @ApiBearerAuth() // Memberi tahu Swagger bahwa endpoint ini butuh Bearer Token
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Dapatkan profil lengkap saya (yang sedang login)' })
-  getMyProfile(@Req() req) {
-    // req.user.id diisi oleh strategi JWT setelah token divalidasi
-    // Pastikan strategi JWT Anda mengembalikan payload dengan properti 'id'
-    const userId = req.user.id; 
-    
-    // MEMANGGIL FUNGSI YANG BENAR: getFullProfile untuk data yang kaya
-    return this.usersService.getFullProfile(userId);
+  async getMyProfile(@Req() req) {
+    this.logger.debug(`req.user = ${JSON.stringify(req.user)}`);
+    try {
+      const userId = req.user?.id ?? req.user?.userId ?? null;
+      if (!userId) {
+        this.logger.warn('Missing userId in req.user');
+        throw new UnauthorizedException('Invalid token payload');
+      }
+      return await this.usersService.getFullProfile(userId);
+    } catch (err) {
+      this.logger.error(err?.stack ?? err);
+      throw err instanceof UnauthorizedException
+        ? err
+        : new InternalServerErrorException();
+    }
   }
 
   /**
-   * Endpoint untuk mengupdate profil pengguna yang sedang login.
-   * Rute: PATCH /users/me
+   * PATCH /users/me → update profil sosial user login
    */
   @Patch('me')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update profil sosial saya' })
-  updateMyProfile(
-    @Req() req,
-    @Body() updateUserDto: UpdateUserDto,
-  ) {
-    const userId = req.user.id;
-    return this.usersService.updateProfile(userId, updateUserDto);
+  async updateMyProfile(@Req() req, @Body() updateUserDto: UpdateUserDto) {
+    this.logger.debug(`Update profile for userId=${req.user?.id}`);
+    try {
+      const userId = req.user?.id ?? null;
+      if (!userId) {
+        throw new UnauthorizedException('Invalid token payload');
+      }
+      return await this.usersService.updateProfile(userId, updateUserDto);
+    } catch (err) {
+      this.logger.error(err?.stack ?? err);
+      throw err instanceof UnauthorizedException
+        ? err
+        : new InternalServerErrorException();
+    }
   }
 }

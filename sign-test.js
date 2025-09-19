@@ -8,7 +8,7 @@ const ethers = require('ethers');
 const privateKey = '0x93409643a7bb583b126c01f348483176142ba34264bc2d596c9f831e387cd7ee'; 
             
 // GANTI PESAN INI DENGAN PESAN YANG ANDA DAPATKAN DARI ENDPOINT /auth/signin
-const messageToSign = "Selamat datang di KaiaLink! Silakan tanda tangani pesan ini untuk login. Nonce: fa4ab678-088e-483f-8bc1-baa148df5c7b"; 
+const messageToSign = "Selamat datang di KaiaLink! Silakan tanda tangani pesan ini untuk login. Nonce: 43793ff8-3830-4a9c-827f-508f30b3abe7"; 
 
 // --- SELESAI KONFIGURASI ---
 

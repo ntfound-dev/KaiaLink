@@ -1,32 +1,44 @@
-// LOKASI FILE: apps/backend/src/auth/strategies/jwt.strategy.ts
-// -------------------------------------------------------------
-
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { UsersService } from '../../users/users.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private usersService: UsersService,
+  ) {
     super({
-      // Cara mengekstrak token: dari header 'Authorization' sebagai 'Bearer' token.
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      // Jangan abaikan jika token sudah kadaluarsa.
       ignoreExpiration: false,
-      // Kunci rahasia untuk memverifikasi tanda tangan token.
       secretOrKey: configService.get<string>('JWT_SECRET'),
     });
   }
 
-  /**
-   * Fungsi ini akan dipanggil setelah token berhasil diverifikasi.
-   * Payload yang dikembalikan akan ditambahkan oleh NestJS ke object Request (req.user).
-   * @param payload Payload yang ada di dalam JWT
-   * @returns Objek yang akan menjadi req.user
-   */
+  // Ambil user dari DB & return object minimal yang aman dipakai oleh controller
   async validate(payload: any) {
-    return { userId: payload.sub, walletAddress: payload.walletAddress };
+    // Cek payload.sub dulu (bisa berisi id), fallback by walletAddress
+    const byId =
+      typeof payload.sub === 'string' ? await this.usersService.findById(payload.sub) : null;
+    const byWallet =
+      !byId && payload.walletAddress ? await this.usersService.findByWallet(payload.walletAddress) : null;
+    const user = byId ?? byWallet;
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Kembalikan hanya properti yang memang ada di model User
+    return {
+      id: user.id,
+      walletAddress: user.walletAddress,
+      twitterHandle: user.twitterHandle ?? null,
+      telegramHandle: user.telegramHandle ?? null,
+      discordId: user.discordId ?? null,
+      lineId: user.lineId ?? null,
+      points: user.points ?? 0,
+    };
   }
 }
-
