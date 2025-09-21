@@ -138,11 +138,21 @@ export class UsersService {
 
   async findById(id: string) {
     if (!id) return null;
-    return this.prisma.user.findUnique({ where: { id } });
+    try {
+      return await this.prisma.user.findUnique({ where: { id } });
+    } catch (error) {
+      this.logger.error(`Failed to find user by id ${id}:`, error.stack);
+      throw new InternalServerErrorException('Database error while finding user.');
+    }
   }
 
   async findByWallet(walletAddress: string) {
     if (!walletAddress) return null;
-    return this.prisma.user.findUnique({ where: { walletAddress } });
+    try {
+      return await this.prisma.user.findUnique({ where: { walletAddress } });
+    } catch (error) {
+      this.logger.error(`Failed to find user by wallet ${walletAddress}:`, error.stack);
+      throw new InternalServerErrorException('Database error while finding user.');
+    }
   }
 }
