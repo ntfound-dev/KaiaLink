@@ -1,6 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import styles from '@/styles/defiRoot.module.css';
 
 export default function DefiRootPage() {
   const router = useRouter();
@@ -10,9 +11,9 @@ export default function DefiRootPage() {
   }, [router]);
 
   return (
-    <div className="flex items-center justify-center p-10">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      <p className="ml-4 text-gray-500">Mempersiapkan Ruang DeFi...</p>
+    <div className={styles.rootContainer}>
+      <div className={styles.spinner}></div>
+      <p className={styles.loadingText}>Mempersiapkan Ruang DeFi...</p>
     </div>
   );
 }

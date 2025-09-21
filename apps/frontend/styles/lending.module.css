@@ -1,0 +1,21 @@
+/* apps/frontend/styles/lending.module.css */
+.panelCard {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid rgba(15,23,42,0.04);
+  padding: 1rem;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.04);
+}
+
+.sectionGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .sectionGrid { grid-template-columns: 1fr 1fr; }
+}
+
+.smallMuted { color: #6b7280; font-size: 0.9rem; }
+.errorText { color: #ef4444; font-size: 0.9rem; }

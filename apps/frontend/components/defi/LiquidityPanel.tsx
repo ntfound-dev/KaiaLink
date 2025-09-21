@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useLiquidityPool } from '@/hooks/useLiquidityPool';
+import styles from '@/styles/liquidity.module.css';
 
 interface TokenInfo {
   symbol: string;

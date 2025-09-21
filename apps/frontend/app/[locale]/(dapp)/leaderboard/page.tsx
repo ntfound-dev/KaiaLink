@@ -1,122 +1,87 @@
 'use client';
-import styles from '@/styles/leaderboard.module.css';
-import { useState, FC, ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
-import type { GenericLeaderboardEntry } from '@/types/shared';
+
+import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Crown } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
+import { useLeaderboard } from '@/hooks/useLeaderboard';
+import styles from '@/styles/leaderboard.module.css';
+import type { GenericLeaderboardEntry } from '@/types/shared';
 
-const leaderboardConfigs = {
-  points: {
-    label: 'Poin',
-    valueLabel: 'Total Poin',
-    queryFn: () => api.getLeaderboard('points'),
-    valueFormatter: (value: number) => value.toLocaleString(),
-  },
+type LeaderboardCategory = 'points' | 'swap' | 'amm' | 'lending' | 'staking' | 'referral';
+
+const leaderboardConfigs: Record<
+  LeaderboardCategory,
+  { label: string; valueLabel: string; valueFormatter: (v: number) => React.ReactNode }
+> = {
+  points: { label: 'Poin', valueLabel: 'Total Poin', valueFormatter: (v) => v.toLocaleString() },
   swap: {
     label: 'Volume Swap',
     valueLabel: 'Volume Swap (USD)',
-    queryFn: () => api.getLeaderboard('swap'),
-    valueFormatter: (value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    valueFormatter: (v) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
   },
   amm: {
     label: 'TVL AMM',
     valueLabel: 'TVL AMM (USD)',
-    queryFn: () => api.getLeaderboard('amm'),
-    valueFormatter: (value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    valueFormatter: (v) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
   },
   lending: {
     label: 'TVL Lending',
     valueLabel: 'TVL Lending (USD)',
-    queryFn: () => api.getLeaderboard('lending'),
-    valueFormatter: (value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    valueFormatter: (v) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
   },
   staking: {
     label: 'TVL Staking',
     valueLabel: 'TVL Staking (USD)',
-    queryFn: () => api.getLeaderboard('staking'),
-    valueFormatter: (value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+    valueFormatter: (v) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
   },
-  referral: {
-    label: 'Referral Terbanyak',
-    valueLabel: 'Jumlah Referral',
-    queryFn: () => api.getLeaderboard('referral'),
-    valueFormatter: (value: number) => value.toLocaleString(),
-  },
-} as const;
-
-type LeaderboardCategory = keyof typeof leaderboardConfigs;
-type LeaderboardDataItem = GenericLeaderboardEntry;
-
-interface LeaderboardTableProps {
-  data: LeaderboardDataItem[];
-  valueLabel: string;
-  valueFormatter: (value: number) => ReactNode;
-  isLoading: boolean;
-  isError: boolean;
-}
-
-const LeaderboardTable: FC<LeaderboardTableProps> = ({ data, valueLabel, valueFormatter, isLoading, isError }) => {
-  if (isLoading) return <p className={styles.leaderboardLoading}>Memuat data peringkat...</p>;
-  if (isError) return <p className={styles.leaderboardError}>Gagal memuat data. Silakan coba lagi nanti.</p>;
-  if (!data || data.length === 0) return <p className={styles.leaderboardEmpty}>Data tidak tersedia untuk kategori ini.</p>;
-
-  return (
-    <table className={styles.leaderboardTable}>
-      <thead>
-        <tr>
-          <th className="p-4 font-semibold">Peringkat</th>
-          <th className="p-4 font-semibold">Username</th>
-          <th className="p-4 font-semibold text-right">{valueLabel}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.map((user) => (
-          <tr key={user.rank} className={styles.leaderboardRow}>
-            <td className="p-4">
-              <div className={styles.leaderboardRank}>
-                {user.rank}
-                {user.rank === 1 && <Crown className={styles.leaderboardCrown} />}
-              </div>
-            </td>
-            <td className="p-4">
-              <div className={styles.leaderboardUsername}>{user.username}</div>
-            </td>
-            <td className="p-4">
-              <div className={styles.leaderboardValue}>{valueFormatter(user.value ?? 0)}</div>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
+  referral: { label: 'Referral Terbanyak', valueLabel: 'Jumlah Referral', valueFormatter: (v) => v.toLocaleString() },
 };
 
 export default function LeaderboardPage() {
   const [activeTab, setActiveTab] = useState<LeaderboardCategory>('points');
+  const qc = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery<LeaderboardDataItem[], unknown>({
-    queryKey: ['leaderboard', activeTab],
-    queryFn: () => leaderboardConfigs[activeTab].queryFn(),
-    // optional: staleTime: 1000 * 30,
-  });
+  // Ambil data dari hook — bisa jadi undefined atau bukan array, jadi kita normalisasi di bawah
+  const { data: rawData, isLoading, isError, refetch } = useLeaderboard(activeTab);
 
-  const activeConfig = leaderboardConfigs[activeTab];
+  // Normalisasi: pastikan `data` selalu array untuk keperluan render (.length, .map)
+  const data: GenericLeaderboardEntry[] = Array.isArray(rawData) ? rawData : [];
+
+  const cfg = leaderboardConfigs[activeTab];
 
   return (
-    <div className={`${styles.leaderboardContainer} space-y-8`}>
-      <div>
-        <h1 className={styles.leaderboardHeaderTitle}>Papan Peringkat Global</h1>
-        <p className={styles.leaderboardHeaderSubtitle}>Lihat siapa yang teratas di ekosistem KaiaLink.</p>
+    <div className={styles.leaderboardContainer}>
+      <div className={styles.headerRow}>
+        <div>
+          <h1 className={styles.leaderboardHeaderTitle}>Papan Peringkat Global</h1>
+          <p className={styles.leaderboardHeaderSubtitle}>Lihat siapa yang teratas di ekosistem KaiaLink.</p>
+        </div>
+
+        <div className={styles.headerActions}>
+          <button
+            className={styles.refreshBtn}
+            onClick={() => {
+              qc.invalidateQueries({ queryKey: ['leaderboard', activeTab] });
+              refetch();
+            }}
+            aria-label="Refresh leaderboard"
+            title="Refresh"
+          >
+            ⟳
+          </button>
+        </div>
       </div>
 
-      <div className={styles.leaderboardTabs}>
+      <div className={styles.leaderboardTabs} role="tablist" aria-label="Kategori leaderboard">
         {(Object.keys(leaderboardConfigs) as LeaderboardCategory[]).map((tabId) => (
           <button
             key={tabId}
-            onClick={() => setActiveTab(tabId)}
+            role="tab"
             aria-selected={activeTab === tabId}
+            aria-controls={`leaderboard-${tabId}`}
+            id={`tab-${tabId}`}
+            onClick={() => setActiveTab(tabId)}
             className={`${styles.tabButton} ${activeTab === tabId ? styles.tabButtonActive : ''}`}
           >
             {leaderboardConfigs[tabId].label}
@@ -124,14 +89,57 @@ export default function LeaderboardPage() {
         ))}
       </div>
 
-      <Card className={`${styles.leaderboardCard} overflow-hidden`}>
-        <LeaderboardTable
-          data={data || []}
-          isLoading={isLoading}
-          isError={isError}
-          valueLabel={activeConfig.valueLabel}
-          valueFormatter={activeConfig.valueFormatter}
-        />
+      <Card className={styles.leaderboardCard}>
+        <div id={`leaderboard-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
+          <div className={styles.tableHeader}>
+            <div className={styles.colRank}>Peringkat</div>
+            <div className={styles.colUser}>Username</div>
+            <div className={styles.colValue}>{cfg.valueLabel}</div>
+          </div>
+
+          {isLoading ? (
+            <div className={styles.skeletonList}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className={styles.skeletonRow}>
+                  <div className={styles.skelRank} />
+                  <div className={styles.skelUser} />
+                  <div className={styles.skelValue} />
+                </div>
+              ))}
+            </div>
+          ) : isError ? (
+            <div className={styles.leaderboardError}>
+              Gagal memuat data.
+              <button className={styles.retryBtn} onClick={() => refetch()}>
+                Coba lagi
+              </button>
+            </div>
+          ) : data.length > 0 ? (
+            <div className={styles.tableBody}>
+              {data.map((item: GenericLeaderboardEntry) => (
+                <div key={`${activeTab}-${item.rank}-${item.username}`} className={styles.leaderboardRow}>
+                  <div className={styles.colRank}>
+                    <span className={styles.rankWrap}>
+                      {item.rank}
+                      {item.rank === 1 && <Crown className={styles.leaderboardCrown} />}
+                    </span>
+                  </div>
+
+                  <div className={styles.colUser}>
+                    <div className={styles.username}>{item.username}</div>
+                    <div className={styles.userMeta}>{item.userId ?? ''}</div>
+                  </div>
+
+                  <div className={styles.colValue}>
+                    <div className={styles.valueFormatted}>{cfg.valueFormatter(item.value ?? 0)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.leaderboardEmpty}>Tidak ada data untuk kategori ini.</div>
+          )}
+        </div>
       </Card>
     </div>
   );

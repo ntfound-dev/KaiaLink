@@ -3,12 +3,12 @@
 
 import React, { useMemo, useState } from 'react';
 import Image from 'next/image';
-import { ArrowDownUp, Settings2 } from 'lucide-react';
+import { ArrowDownUp, Settings2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { useSwap } from '@/hooks/useSwap'; // harap ada; jika signature berbeda, adaptasi hook
+import useSwap from '@/hooks/useSwap';
 
-// Placeholder token list (ganti dengan daftar token sebenarnya)
+// Placeholder token list (sama seperti sebelumnya)
 const TOKEN_LIST = [
   { symbol: 'USDT', name: 'Tether USD', address: '0x0000000000000000000000000000000000000001' as `0x${string}`, logoURI: '/tokens/usdt.png' },
   { symbol: 'LINKA', name: 'KaiaLink Token', address: '0x0000000000000000000000000000000000000002' as `0x${string}`, logoURI: '/tokens/linka.png' },
@@ -31,15 +31,8 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   );
 }
 
-/**
- * SwapForm menerima optional props (routerAddress, readOptions, oneUnit).
- * Page yang mengimpor bisa tetap mengirim props — ini memperbaiki error TS "IntrinsicAttributes".
- *
- * NOTE: jika hook `useSwap` yang kamu punya menerima `routerAddress`/`readOptions`/`oneUnit`
- * sebagai parameter, ubah pemanggilan useSwap di bawah sesuai signature hook-mu.
- */
 export default function SwapForm(props: SwapFormProps): JSX.Element {
-  const { routerAddress, readOptions, oneUnit } = props;
+  const { routerAddress } = props;
 
   const [amountIn, setAmountIn] = useState('');
   const [tokenIn, setTokenIn] = useState(TOKEN_LIST[0]);
@@ -47,22 +40,27 @@ export default function SwapForm(props: SwapFormProps): JSX.Element {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectingFor, setSelectingFor] = useState<'in' | 'out'>('in');
 
-  // Jika useSwap menerima more args/options, sesuaikan panggilannya di sini.
-  // Saat ini kita panggil dengan (tokenIn, tokenOut, amountIn) agar kompatibel
-  // dengan kebanyakan implementasi; jika hook-mu menerima options, ubah.
+  // slippage UI state
+  const SLIPPAGE_PRESETS = [0.1, 0.5, 1]; // percents
+  const [selectedSlippage, setSelectedSlippage] = useState<number>(0.5);
+  const [isCustomSlippage, setIsCustomSlippage] = useState(false);
+  const [customSlippageValue, setCustomSlippageValue] = useState<string>('0.5');
+
   const {
-    balanceIn = 0,
-    amountOut = '',
-    needsApproval = false,
+    balanceIn,
+    amountOut,
+    amountOutRaw,
+    estimateMinReceived,
+    needsApproval,
     approve,
     swap,
-    isLoading = false,
-  } = useSwap(tokenIn, tokenOut, amountIn);
+    isLoading,
+  } = useSwap(tokenIn, tokenOut, amountIn, { routerAddress });
 
   const balanceDisplay = useMemo(() => {
     try {
       if (typeof balanceIn === 'number') return balanceIn.toLocaleString();
-      if (typeof balanceIn === 'string') return parseFloat(balanceIn).toLocaleString();
+      if (typeof balanceIn === 'string') return Number(balanceIn) === 0 ? '0' : Number(balanceIn).toLocaleString();
       return String(balanceIn);
     } catch {
       return '0';
@@ -100,14 +98,45 @@ export default function SwapForm(props: SwapFormProps): JSX.Element {
     });
   };
 
+  // compute effective slippage percent
+  const slippagePercent = isCustomSlippage ? Number(customSlippageValue || 0) : selectedSlippage;
+
+  // compute min received estimate using hook helper (best when amountOutRaw present)
+  const minReceivedEstimate = useMemo(() => {
+    if (!amountOut) return '';
+    // prefer hook's precise BN-based estimate:
+    const est = estimateMinReceived(slippagePercent);
+    if (est) return est;
+    // fallback: parse amountOut numeric
+    try {
+      const outNum = parseFloat(String(amountOut || '0'));
+      if (!Number.isFinite(outNum)) return '';
+      const minNum = outNum * (1 - slippagePercent / 100);
+      // format with reasonable precision
+      return minNum.toLocaleString(undefined, { maximumFractionDigits: 8 });
+    } catch {
+      return '';
+    }
+  }, [amountOut, amountOutRaw, estimateMinReceived, slippagePercent]);
+
   const actionDisabled = !amountIn || Number(amountIn) <= 0 || isLoading;
 
   const handleActionClick = async () => {
-    if (needsApproval) {
-      if (typeof approve === 'function') await approve();
-      return;
+    try {
+      if (needsApproval) {
+        if (typeof approve === 'function') {
+          await approve();
+        }
+        return;
+      }
+      if (typeof swap === 'function') {
+        // pass slippage percent to swap (backend or on-chain fallback)
+        await swap(Number(slippagePercent));
+      }
+    } catch (err: any) {
+      // show simple alert for now; replace with toast if you have one
+      alert(`Swap gagal: ${err?.message ?? String(err)}`);
     }
-    if (typeof swap === 'function') await swap();
   };
 
   return (
@@ -155,6 +184,10 @@ export default function SwapForm(props: SwapFormProps): JSX.Element {
       <div className="bg-gray-100 p-3 rounded-lg mt-3">
         <div className="flex justify-between text-sm text-gray-500">
           <span>Ke (Estimasi)</span>
+          <div className="flex items-center gap-2">
+            <Info size={14} />
+            <span className="text-xs">Estimates — slippage will affect final amount</span>
+          </div>
         </div>
         <div className="flex items-center justify-between mt-1 gap-3">
           <input
@@ -169,6 +202,47 @@ export default function SwapForm(props: SwapFormProps): JSX.Element {
             <span className="mr-2">{tokenOut.symbol}</span>
             <span className="text-xs">▼</span>
           </button>
+        </div>
+
+        {/* Slippage controls */}
+        <div className="mt-3">
+          <div className="flex items-center gap-2 mb-2">
+            {SLIPPAGE_PRESETS.map((p) => (
+              <button
+                key={p}
+                onClick={() => { setSelectedSlippage(p); setIsCustomSlippage(false); }}
+                className={`px-3 py-1 rounded-md border ${!isCustomSlippage && selectedSlippage === p ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+                aria-pressed={!isCustomSlippage && selectedSlippage === p}
+              >
+                {p}%
+              </button>
+            ))}
+            <button
+              onClick={() => { setIsCustomSlippage(true); setSelectedSlippage(Number(customSlippageValue || 0)); }}
+              className={`px-3 py-1 rounded-md border ${isCustomSlippage ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`}
+            >
+              Custom
+            </button>
+            {isCustomSlippage && (
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                max="50"
+                step="0.1"
+                value={customSlippageValue}
+                onChange={(e) => setCustomSlippageValue(e.target.value)}
+                className="ml-2 p-1 w-20 border rounded"
+              />
+            )}
+          </div>
+
+          {/* Min received estimate */}
+          {amountOut && (
+            <div className="text-xs text-gray-600">
+              Min diterima (perkiraan): <span className="font-semibold">{minReceivedEstimate || '-'}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -191,11 +265,10 @@ export default function SwapForm(props: SwapFormProps): JSX.Element {
         </Button>
       </div>
 
-      {/* debug: tunjukkan routerAddress/oneUnit kalau diberikan (bisa dihapus nanti) */}
-      {(routerAddress || oneUnit) && (
+      {/* debug: tunjukkan routerAddress kalau diberikan (bisa dihapus nanti) */}
+      {routerAddress && (
         <div className="mt-3 text-xs text-gray-500">
-          {routerAddress && <div>Router: <code>{String(routerAddress)}</code></div>}
-          {oneUnit && <div>oneUnit: <code>{oneUnit.toString()}</code></div>}
+          Router: <code>{String(routerAddress)}</code>
         </div>
       )}
 

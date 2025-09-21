@@ -8,72 +8,36 @@ import type {
   GenericLeaderboardEntry,
 } from '@/types/shared';
 
-/**
- * Konfigurasi axios tunggal & reusable untuk frontend.
- * - withCredentials true agar cookie session (jika backend pakai cookie) ikut terkirim.
- * - baseURL dari env NEXT_PUBLIC_API_URL atau fallback ke http://localhost:3001
- */
-const FALLBACK_API = 'http://localhost:3001';
-const API_ROOT = process.env.NEXT_PUBLIC_API_URL || FALLBACK_API;
-
+// ============================================================================
+// KONFIGURASI AXIOS CLIENT
+// ============================================================================
 const apiClient = axios.create({
-  baseURL: API_ROOT,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true,
 });
 
-console.log('[apiClient] baseURL =', apiClient.defaults.baseURL);
-
-/** Helper untuk set Authorization header secara manual (mis. setelah login). */
-export function setAuthToken(token?: string | null) {
-  if (token) {
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  } else {
-    delete apiClient.defaults.headers.common['Authorization'];
-  }
-}
-
-/** Request interceptor: ambil token dari localStorage (dev) dan pasang header. */
 apiClient.interceptors.request.use(
-  (config: any) => {
-    try {
-      if (typeof window !== 'undefined') {
-        const token = localStorage.getItem('jwt_token');
-        if (token) {
-          if (!config.headers) config.headers = {};
-          config.headers.Authorization = `Bearer ${token}`;
-        }
+  (config) => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('jwt_token');
+      if (token) {
+        if (!config.headers) config.headers = {} as any;
+        (config.headers as any).Authorization = `Bearer ${token}`;
       }
-    } catch (e) {
-      // ignore in SSR or restricted env
     }
     return config;
   },
-  (error) => Promise.reject(error),
-);
-
-/** Response interceptor: log 401, (opsional) handling global seperti auto-logout. */
-apiClient.interceptors.response.use(
-  (res) => res,
-  (err: any) => {
-    if (err?.response?.status === 401) {
-      console.warn('[apiClient] 401 - unauthorized', err.response?.data ?? err.message);
-      // OPTIONAL: auto-logout behavior ( Uncomment jika mau )
-      // localStorage.removeItem('jwt_token');
-      // window.location.href = '/login';
-    }
-    return Promise.reject(err);
-  },
+  (error) => Promise.reject(error)
 );
 
 // ============================================================================
-// API OBJECT (axios-based) - gunakan apiClient di sini
+// API OBJECT (axios-based)
 // ============================================================================
 export const api = {
   /** Mengambil profil pengguna yang sedang login. */
   async getUserProfile(): Promise<Profile> {
-    const { data } = await apiClient.get('/api/users/me'); // <-- pastikan backend endpoint sesuai
+    const { data } = await apiClient.get('/users/me');
     return data as Profile;
   },
 
@@ -84,40 +48,40 @@ export const api = {
   },
 
   async getMissions(): Promise<Mission[]> {
-    const { data } = await apiClient.get('/api/missions');
+    const { data } = await apiClient.get('/missions');
     const raw = data?.data ?? data?.missions ?? data;
     if (Array.isArray(raw)) return raw as Mission[];
     return [];
   },
 
   async verifyMission(missionId: string | number): Promise<any> {
-    const { data } = await apiClient.post(`/api/missions/${missionId}/complete`);
+    const { data } = await apiClient.post(`/missions/${missionId}/complete`);
     return data;
   },
 
   async getLeaderboard(category: string): Promise<GenericLeaderboardEntry[]> {
-    const { data } = await apiClient.get(`/api/leaderboards/${category}`);
+    const { data } = await apiClient.get(`/leaderboards/${category}`);
     return data as GenericLeaderboardEntry[];
   },
 
   async getReferralData(): Promise<ReferralData> {
-    const { data } = await apiClient.get('/api/referrals/my-referrals');
+    const { data } = await apiClient.get('/referrals/my-referrals');
     return data as ReferralData;
   },
 
   async getAirdropData(): Promise<AirdropData> {
-    const { data } = await apiClient.get('/api/airdrop/status');
+    const { data } = await apiClient.get('/airdrop/status');
     return data as AirdropData;
   },
 
   async sendChatMessage(message: string, history: any[]): Promise<string> {
-    const { data } = await apiClient.post('/api/ai-chat/send', { message, history });
+    const { data } = await apiClient.post('/ai-chat/send', { message, history });
     return data?.response ?? data;
   },
 
   /** Mengirim permintaan untuk mengklaim airdrop. */
   async claimAirdrop(): Promise<{ success: boolean; message: string }> {
-    const { data } = await apiClient.post('/api/airdrop/claim');
+    const { data } = await apiClient.post('/airdrop/claim');
     return data;
   },
 };
@@ -126,12 +90,15 @@ export const getMyProfile = async (): Promise<Profile> => {
   return api.getMyProfile();
 };
 
-export default apiClient;
+export default api;
 
 /* =========================================================================== */
 /* DeFi-specific typed helper API                                              */
+/* Jika backend punya endpoint /defi/config, typedApi.getDeFiConfig akan memanggilnya.
+   Kalau tidak ada, fungsi akan mengembalikan struktur default yang aman.        */
 /* =========================================================================== */
 
+/** Minimal shapes — perpanjang sesuai struktur backendmu */
 export interface DeFiPool { [k: string]: any }
 export interface DeFiMarket { [k: string]: any }
 export interface DeFiFarm { [k: string]: any }
@@ -146,12 +113,19 @@ export interface DeFiConfig {
 
 export interface DeFiApi {
   getDeFiConfig(): Promise<DeFiConfig>;
+  // tambah method lain kalau perlu
 }
 
+/**
+ * typedApi: memanggil endpoint /defi/config jika tersedia,
+ * dan memetakan hasilnya ke DeFiConfig. Jika request gagal,
+ * fungsi akan mengembalikan objek default yang aman.
+ */
 export const typedApi: DeFiApi = {
   async getDeFiConfig(): Promise<DeFiConfig> {
     try {
-      const res = await apiClient.get('/api/defi/config');
+      // Coba panggil endpoint yang umum dipakai untuk konfigurasi DeFi
+      const res = await apiClient.get('/defi/config');
       const raw = res?.data ?? res;
       const mapped: DeFiConfig = {
         pools: raw?.pools ?? raw?.data?.pools ?? [],
@@ -162,7 +136,13 @@ export const typedApi: DeFiApi = {
       };
       return mapped;
     } catch (err) {
-      return { pools: [], markets: [], farms: [], routerAddress: undefined };
+      // Fallback aman: kembalikan objek kosong terstruktur
+      return {
+        pools: [],
+        markets: [],
+        farms: [],
+        routerAddress: undefined,
+      };
     }
   },
 };

@@ -1,27 +1,38 @@
 'use client';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+
+import { useMemo } from 'react';
+import { useReferral } from '@/hooks/useReferral';
 import { Copy, Users, Gift } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import styles from '@/styles/referral.css';
-
-// Tipe lokal untuk data referral — sesuaikan jika api meng-export tipe yang berbeda
-type ReferralData = {
-  referralCode?: string | null;
-  totalReferrals?: number;
-  totalBonusPoints?: number;
-  referrals?: Array<{ username?: string; status?: string; joinDate?: string }>;
-};
+import styles from '@/styles/referral.module.css';
 
 export default function ReferralPage() {
-  const { data: referralData, isLoading } = useQuery<ReferralData | undefined>({
-    queryKey: ['referralData'],
-    queryFn: async () => {
-      if (!api || typeof api.getReferralData !== 'function') return undefined;
-      return await api.getReferralData();
-    },
-    enabled: !!api && typeof api.getReferralData === 'function',
-  });
+  const { data: referralData, isLoading } = useReferral();
+
+  const referralCode = useMemo(() => referralData?.referralCode ?? '', [referralData]);
+
+  async function handleCopy() {
+    if (!referralCode) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(referralCode);
+        // small feedback — replace with toast if you have one
+        alert('Kode referral disalin ke clipboard');
+      } else {
+        // fallback: create temporary input
+        const tmp = document.createElement('input');
+        tmp.value = referralCode;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+        alert('Kode referral disalin ke clipboard (fallback)');
+      }
+    } catch (err) {
+      console.error('copy failed', err);
+      alert('Gagal menyalin kode.');
+    }
+  }
 
   return (
     <div className={`${styles.container} space-y-8`}>
@@ -36,18 +47,11 @@ export default function ReferralPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-600 mb-2">Salin dan bagikan kode ini kepada teman Anda.</p>
+
           <div className={styles.codeRow}>
             <span className={styles.codeText}>{isLoading ? 'Memuat...' : referralData?.referralCode ?? '-'}</span>
             <button
-              onClick={() => {
-                const code = referralData?.referralCode ?? '';
-                if (!code) return;
-                if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-                  navigator.clipboard.writeText(code);
-                } else {
-                  void Promise.resolve();
-                }
-              }}
+              onClick={handleCopy}
               className={styles.copyButton}
               title="Salin Kode"
               disabled={isLoading || !referralData?.referralCode}
@@ -80,6 +84,23 @@ export default function ReferralPage() {
             <p className="text-xs text-muted-foreground">Poin yang didapat dari referral</p>
           </CardContent>
         </Card>
+      </div>
+
+      <div>
+        <h3 className="text-lg font-semibold">Daftar Referral</h3>
+        {referralData?.referrals && referralData.referrals.length > 0 ? (
+          <div className={styles.referralsList}>
+            {referralData.referrals.map((r, i) => (
+              <div key={i} className={styles.referralsRow}>
+                <div className={styles.referralUsername}>{r.username ?? '—'}</div>
+                <div className={styles.referralMeta}>{r.status ?? '-'}</div>
+                <div className={styles.referralMeta}>{r.joinDate ?? '-'}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.emptyState}>Belum ada referral.</div>
+        )}
       </div>
     </div>
   );

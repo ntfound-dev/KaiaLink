@@ -18,7 +18,6 @@ async function bootstrap() {
     const httpAdapter = (app as any).getHttpAdapter?.();
     const underlying = httpAdapter?.getInstance?.() as any | undefined;
     if (underlying && typeof underlying.set === 'function') {
-      // Express app instance
       underlying.set('trust proxy', true);
       console.log('Set trust proxy on underlying Express instance');
     } else {
@@ -32,32 +31,48 @@ async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
   const rawAllowed = (process.env.ALLOWED_ORIGIN || '').trim();
 
-  let allowedOrigin: string | string[] | boolean = true;
-  if (rawAllowed) {
-    const parts = rawAllowed.split(',').map((s) => s.trim()).filter(Boolean);
-    allowedOrigin = parts.length === 1 ? parts[0] : parts;
-  } else if (isProd) {
-    console.warn(
-      'ALLOWED_ORIGIN not set in production — defaulting to https://your-production-domain.com',
-    );
-    allowedOrigin = 'https://your-production-domain.com';
-  } else {
-    allowedOrigin = true; // dev: allow all
-  }
+  // Parse env: "http://localhost:3000,https://abcd.ngrok-free.app"
+  const allowedFromEnv: string[] = rawAllowed
+    ? rawAllowed.split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
 
-  console.log('CORS allowed origin:', allowedOrigin);
+  console.log('ALLOWED_ORIGIN env parsed:', allowedFromEnv);
 
   app.enableCors({
-    origin: allowedOrigin,
+    origin: (origin, callback) => {
+      // allow curl / server-to-server (no origin)
+      if (!origin) {
+        // non-browser requests
+        return callback(null, true);
+      }
+
+      // dev allowed hosts
+      const devAllowed = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+      ];
+
+      // Accept any subdomain of ngrok-free.app over https (e.g. https://75b895052608.ngrok-free.app)
+      const ngrokRegex = /^https?:\/\/[a-z0-9-]+\.ngrok-free\.app$/i;
+
+      const allowed = devAllowed.concat(allowedFromEnv);
+      const ok = allowed.includes(origin) || ngrokRegex.test(origin);
+
+      if (ok) {
+        return callback(null, true);
+      }
+
+      console.warn('CORS blocked origin:', origin);
+      return callback(new Error('Not allowed by CORS'), false);
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    allowedHeaders:
-      'Content-Type,Authorization,Accept,Origin,User-Agent,X-Requested-With',
+    allowedHeaders: 'Content-Type,Authorization,Accept,Origin,User-Agent,X-Requested-With',
     exposedHeaders: 'Authorization,Content-Length,ETag',
     optionsSuccessStatus: 204,
   });
 
-  // --- security & perf middlewares (optional but useful)
+  // --- security & perf middlewares
   app.use(helmet());
   app.use(compression());
 
@@ -92,12 +107,9 @@ async function bootstrap() {
   console.log(`Aplikasi berjalan di: ${localUrl} (listening on 0.0.0.0:${port})`);
   console.log(`Raw app url: ${appUrl}`);
   console.log(`API docs available at: ${localUrl}/docs`);
-
-  /**
-   * Cookies note:
-   * If you use cookies across origins (eg: ngrok), ensure cookie options:
-   *   sameSite: 'none', secure: true
-   * And frontend must call with credentials (axios: withCredentials: true)
-   */
 }
-bootstrap();
+
+bootstrap().catch(err => {
+  console.error('Failed to bootstrap application', err);
+  process.exit(1);
+});

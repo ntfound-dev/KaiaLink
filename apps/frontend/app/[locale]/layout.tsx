@@ -1,7 +1,7 @@
 // apps/frontend/app/[locale]/layout.tsx
 
 import '../../styles/globals.css';
-import { Providers } from '@/app/providers';
+import Providers from '@/app/providers'; // <-- default import
 
 export default function LocaleLayout({
   children,

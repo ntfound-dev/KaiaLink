@@ -1,0 +1,36 @@
+/* apps/frontend/styles/defiRoot.module.css */
+
+.rootContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem; /* p-10 */
+  min-height: 60vh;
+  color: #6b7280; /* text-gray-500 */
+  font-size: 1rem;
+}
+
+.spinner {
+  border-radius: 9999px;
+  height: 3rem; /* h-12 */
+  width: 3rem;  /* w-12 */
+  border-bottom: 2px solid #3b82f6; /* border-blue-500 */
+  border-left: 2px solid transparent;
+  border-top: 2px solid transparent;
+  border-right: 2px solid transparent;
+  animation: spin 1s linear infinite;
+  margin-right: 1rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loadingText {
+  margin-left: 1rem;
+}

@@ -1,128 +1,104 @@
-/* app/[locale]/(dapp)/home/Home.module.css */
+/* apps/frontend/styles/home.module.css */
 
-/* Global CSS variables (safe for CSS Modules) */
-:global(:root) {
-  --bg-card: #ffffff;
-  --muted: #6b7280;
-  --blue: #2563eb;
-  --green: #16a34a;
-  --purple: #7c3aed;
-  --glass: #f9fafb;
-  --shadow: 0 6px 18px rgba(15,23,42,0.06);
+.root {
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
-/* Dark theme global overrides */
-:global(.dark) :global(:root) {
-  --bg-card: #071022;
-  --muted: #94a3b8;
-  --blue: #60a5fa;
-  --green: #16a34a;
-  --purple: #9f7aea;
-  --glass: rgba(2,6,23,0.5);
-  --shadow: 0 8px 22px rgba(2,6,23,0.55);
+.title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin: 0;
+}
+.subtitle {
+  margin-top: 0.25rem;
+  color: #6b7280;
 }
 
-/* Layout container */
-.container { gap: 2rem; display: block; padding: 1rem 0; }
-.headerTitle { font-size: 1.875rem; font-weight: 700; margin: 0; }
-.headerSubtitle { margin-top: .25rem; color: var(--muted); }
-
-/* Grid layout */
-.grid { display: grid; gap: 1.25rem; grid-template-columns: 1fr; }
-@media (min-width: 768px) {
-  .grid { grid-template-columns: repeat(3, 1fr); }
+/* stats grid */
+.statsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
 }
 
-/* Card */
-.card {
+/* stat card overrides (wraps Card from ui) */
+.statCard {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  background: var(--bg-card);
-  padding: 1.25rem;
+  padding: 1rem;
   border-radius: 0.75rem;
-  box-shadow: var(--shadow);
-  border: 1px solid rgba(0,0,0,0.04);
-}
-
-/* Icon */
-.iconCircle {
-  border-radius: 9999px;
-  padding: 0.5rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.iconBlue { background: #E6F0FF; color: var(--blue); }
-.iconGreen { background: #ECFDF5; color: var(--green); }
-.iconPurple { background: #F5E9FF; color: var(--purple); }
-
-/* Stat */
-.statTitle { font-size: .875rem; color: var(--muted); }
-.statValue { font-size: 1.5rem; font-weight: 700; }
-
-/* CTA area */
-.ctaGrid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
-@media (min-width: 768px) { .ctaGrid { grid-template-columns: repeat(2, 1fr); } }
-
-.ctaCard {
-  background: var(--glass);
-  border-radius: .5rem;
-  padding: 1.25rem;
-  text-align: center;
   border: 1px solid rgba(15,23,42,0.04);
-  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px rgba(2,6,23,0.04);
+  background: #fff;
+}
+.statLeft {
+  display:flex;
+  gap: 1rem;
+  align-items: center;
+}
+.iconWrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: rgba(0,0,0,0.03);
+}
+.statLabel {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+.statValue {
+  font-weight: 700;
+  font-size: 1.25rem;
 }
 
+/* responsive: 3 columns on md+ */
+@media (min-width: 768px) {
+  .statsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* CTA grid */
+.ctaGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.ctaCard {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 1rem;
+  border:1px solid rgba(15,23,42,0.02);
+}
 .ctaButton {
-  display: inline-block;
-  padding: .5rem 1rem;
-  border-radius: .375rem;
+  display:inline-block;
+  padding: 0.6rem 1.25rem;
+  background: #2563eb;
   color: #fff;
-  font-weight: 600;
+  border-radius: 8px;
+  font-weight: 700;
   text-decoration: none;
 }
+.ctaButton:hover { background: #1e40af; }
 
-.btnPrimary { background: var(--blue); }
-.btnSuccess { background: var(--green); }
-
-/* MINI variant — compact view for line/app widget */
-.miniContainer {
-  padding: 0.5rem;
-  border-radius: 12px;
-  max-width: 420px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.35));
-  border: 1px solid rgba(0,0,0,0.04);
-  box-shadow: 0 8px 20px rgba(2,6,23,0.06);
-  backdrop-filter: blur(6px);
+/* responsive: 2 columns on md+ for CTA */
+@media (min-width: 768px) {
+  .ctaGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
-.miniHeader { display:flex; align-items:center; justify-content:space-between; gap:0.5rem; }
-.miniTitle { font-size:1rem; font-weight:700; margin:0; }
-.miniSubtitle { font-size:0.78rem; color:var(--muted); margin:0; }
-
-.miniGrid { display:flex; flex-direction:column; gap:0.5rem; margin-top:0.5rem; }
-.miniCard {
-  display:flex; align-items:center; gap:0.75rem;
-  background: var(--bg-card); padding:0.6rem; border-radius:0.6rem;
-  border:1px solid rgba(0,0,0,0.04);
+/* small utility */
+.pulse {
+  animation: pulse 1.5s infinite;
 }
-
-/* avatar/icon for mini */
-.miniIcon {
-  width:40px; height:40px; border-radius:9999px; flex-shrink:0;
-  display:inline-flex; align-items:center; justify-content:center;
-  background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.01));
-}
-
-/* compact texts */
-.miniName { font-weight:700; font-size:0.92rem; }
-.miniMeta { font-size:0.78rem; color:var(--muted); }
-
-/* responsive tweaks */
-@media (max-width: 640px) {
-  .headerTitle { font-size: 1.4rem; }
-  .card { padding: 1rem; gap: 0.75rem; }
-  .miniIcon { width:34px; height:34px; }
-  .miniName { font-size:0.88rem; }
-}
+@keyframes pulse { 0% { opacity: .6 } 50% { opacity: 1 } 100% { opacity: .6 } }

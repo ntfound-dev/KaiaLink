@@ -1,0 +1,88 @@
+/* apps/frontend/styles/defi.module.css */
+
+/* Root layout wrapper */
+.defiRoot {
+  display: block;
+  gap: 2rem;
+}
+
+/* Header */
+.defiHeader {
+  margin-bottom: 0.5rem;
+}
+
+.defiTitle {
+  font-weight: 700;
+  font-size: 1.9rem; /* ~ text-3xl */
+  line-height: 1.05;
+  margin: 0;
+}
+
+.defiSubtitle {
+  color: #6b7280; /* muted gray (tailwind text-gray-500) */
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
+}
+
+/* Tabs container */
+.defiTabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid rgba(15,23,42,0.06); /* subtle */
+  padding-bottom: 0.25rem;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+/* Each tab */
+.defiTab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.1rem;
+  font-weight: 600;
+  font-size: 1rem;
+  color: #6b7280;
+  border-bottom: 3px solid transparent;
+  border-radius: 0.5rem 0.5rem 0 0;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color .15s ease, background .15s ease, border-color .15s ease;
+}
+
+/* Hover/focus */
+.defiTab:hover,
+.defiTab:focus {
+  color: #111827;
+  background: rgba(15,23,42,0.02);
+  outline: none;
+}
+
+/* Active tab */
+.defiTabActive {
+  color: #0ea5e9; /* blue-400 */
+  border-bottom-color: #0ea5e9;
+  background: linear-gradient(180deg, rgba(14,165,233,0.06), rgba(14,165,233,0.02));
+}
+
+/* Responsive: shrink padding on small screens */
+@media (max-width: 640px) {
+  .defiTab {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.95rem;
+  }
+}
+
+/* Content wrapper */
+.defiContent {
+  margin-top: 1rem;
+}
+
+/* Small visual helper for active underline when scrolled */
+.defiTabs::-webkit-scrollbar {
+  height: 6px;
+}
+.defiTabs::-webkit-scrollbar-thumb {
+  background: rgba(15,23,42,0.08);
+  border-radius: 999px;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useUserProfile } from './useUserProfile';
+import { useProfile } from './useUserProfile';
 import { useLiff } from './useLiff';
 
 /**
@@ -8,7 +8,7 @@ import { useLiff } from './useLiff';
  * Pengguna dianggap "terautentikasi" jika sesi LIFF aktif DAN profil dari backend berhasil dimuat.
  */
 export const useAuth = () => {
-  const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
+  const { data: userProfile, isLoading: isProfileLoading } = useProfile();
   const { isLoggedIn: isLiffLoggedIn, isLoading: isLiffLoading } = useLiff();
 
   const isAuthenticated = !!userProfile && isLiffLoggedIn;

@@ -80,20 +80,22 @@ export interface DeFiProfile {
 export interface Mission {
   isActive: boolean;
   targetId?: string | null;
-  id: string;
-  title: string;
-  description: string;
-  points: number;
-  // backend menyederhanakan tipe menjadi sebuah kategori
   type: 'social' | 'on-chain' | string;
-  status: 'completed' | 'available' | string;
+  id: string | number;
+  title: string;
+  description?: string;
+  points?: number;
+  status?: 'pending' | 'completed' | string;
   actionUrl?: string;
 }
+
 
 export interface GenericLeaderboardEntry {
   rank: number;
   username: string;
   value: number;
+  userId?: string;     // optional — backend tidak wajib mengirim
+  avatarUrl?: string;  // optional
 }
 
 export interface LeaderboardEntry {
